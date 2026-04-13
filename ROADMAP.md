@@ -125,13 +125,13 @@
 #### Development Tasks
 
 **Person 1: Backend - Detection API**
-- [ ] Create `/api/detections` endpoints:
+- [x] Create `/api/detections` endpoints:
   - `POST /detections/search/{asset_id}` - Trigger detection for an asset
   - `GET /detections?asset_id={id}` - Get detections for asset
   - `GET /detections/{id}` - Get detection details
-- [ ] Implement detection job queueing (use background tasks in FastAPI)
-- [ ] Store detection results with confidence score
-- [ ] Add pagination for large result sets
+- [x] Implement detection job queueing (use background tasks in FastAPI)
+- [x] Store detection results with confidence score
+- [x] Add pagination for large result sets
 
 **Person 2: Detection Service**
 - [ ] Create detection_service.py:

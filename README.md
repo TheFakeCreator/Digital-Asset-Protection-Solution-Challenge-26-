@@ -138,8 +138,10 @@ pnpm run build
 - `POST /api/v1/assets` - Upload sports media
 - `GET /api/v1/assets` - List registered assets
 - `POST /api/v1/assets/fingerprints/batch` - Recompute fingerprints for multiple assets
-- `POST /api/v1/detections/search/{assetId}` - Trigger detection
-- `GET /api/v1/detections` - Get detection results
+- `POST /api/v1/detections/search/{assetId}` - Trigger queued detection search
+- `GET /api/v1/detections/jobs/{jobId}` - Get detection job status
+- `GET /api/v1/detections` - Get paginated detection results
+- `GET /api/v1/detections/{id}` - Get detection detail
 
 ### Frontend Development
 
@@ -189,6 +191,8 @@ python crawler_worker.py --platform twitter
 - **[TEAM_OPERATING_MODEL.md](./TEAM_OPERATING_MODEL.md)** - Issue/branch/sync protocol for 4-person collaboration
 - **[backend/docs/asset-api-contract.md](./backend/docs/asset-api-contract.md)** - Asset endpoint request and response contract
 - **[backend/docs/reports/day2-asset-endpoint-manual-test.md](./backend/docs/reports/day2-asset-endpoint-manual-test.md)** - Manual Day 2 asset endpoint smoke report
+- **[backend/docs/detection-api-contract.md](./backend/docs/detection-api-contract.md)** - Detection endpoint request and response contract
+- **[backend/docs/reports/day3-detection-endpoint-manual-test.md](./backend/docs/reports/day3-detection-endpoint-manual-test.md)** - Manual Day 3 detection endpoint smoke report
 - **[backend/postman/day2-asset-api.postman_collection.json](./backend/postman/day2-asset-api.postman_collection.json)** - Postman collection for Day 2 asset APIs
 - **[.github/AGENTS.md](./.github/AGENTS.md)** - Workspace-level agent routing and guardrails
 - **[.github/agents/](./.github/agents/)** - Executable domain agents (`*.agent.md`)

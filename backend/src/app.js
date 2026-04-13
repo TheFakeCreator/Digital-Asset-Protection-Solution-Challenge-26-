@@ -3,6 +3,7 @@ const cors = require("cors");
 
 const env = require("./config/env");
 const assetRoutes = require("./api/assets.routes");
+const detectionRoutes = require("./api/detections.routes");
 const healthRoutes = require("./api/health.routes");
 const { notFound } = require("./middleware/not-found");
 const { errorHandler } = require("./middleware/error-handler");
@@ -30,6 +31,7 @@ app.get("/", (_req, res) => {
 
 app.use("/api/v1/health", healthRoutes);
 app.use("/api/v1/assets", assetRoutes);
+app.use("/api/v1/detections", detectionRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
