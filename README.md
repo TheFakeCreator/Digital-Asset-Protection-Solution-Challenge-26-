@@ -180,6 +180,9 @@ python fingerprint_service.py path/to/image.jpg
 # Generate fingerprints for multiple images
 python batch_fingerprint_service.py path/to/image1.jpg path/to/image2.jpg
 
+# Compare one reference image against multiple candidate images
+python detection_service.py --reference path/to/reference.jpg path/to/candidate1.jpg path/to/candidate2.jpg
+
 # Run crawler
 python crawler_worker.py --platform twitter
 ```

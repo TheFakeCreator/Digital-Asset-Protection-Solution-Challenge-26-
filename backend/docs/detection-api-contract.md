@@ -29,7 +29,8 @@ Path:
 Behavior:
 - Returns 202 Accepted immediately
 - Enqueues a background detection job
-- Job processes asset fingerprint into candidate detections
+- Job compares reference asset against candidate images using `python/detection_service.py`
+- Similarity score is 0-100; matches are flagged when score >= `DETECTION_SIMILARITY_THRESHOLD` (default 85)
 
 Example response (202):
 
@@ -142,3 +143,13 @@ Example response (200):
 - DETECTION_JOB_NOT_FOUND (404): unknown job ID
 - DATABASE_UNAVAILABLE (503): MongoDB not connected
 - VALIDATION_ERROR (400): invalid query parameters
+
+## Detection Service Edge Handling
+
+`detection_service.py` applies these rules during batch comparison:
+
+- Corrupted candidate files are marked with `status=error`, `error_code=CORRUPTED_IMAGE`
+- Very small candidate files (below minimum size) are marked with `status=skipped`, `error_code=IMAGE_TOO_SMALL`
+- Missing files are marked with `status=error`, `error_code=FILE_NOT_FOUND`
+
+Non-`ok` candidate items are ignored when persisting detection records.
