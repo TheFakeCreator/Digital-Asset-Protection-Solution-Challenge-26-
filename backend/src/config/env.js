@@ -15,5 +15,10 @@ module.exports = {
   mongoUri: process.env.MONGODB_URI || "",
   corsOrigin: process.env.CORS_ORIGIN || "http://localhost:3000",
   uploadDir: resolvedUploadDir,
-  maxUploadSizeMb: Number(process.env.MAX_UPLOAD_SIZE_MB || 10)
+  maxUploadSizeMb: Number(process.env.MAX_UPLOAD_SIZE_MB || 10),
+  pythonExecutable: process.env.PYTHON_EXECUTABLE || "python",
+  hasCustomPythonExecutable: Boolean(process.env.PYTHON_EXECUTABLE),
+  pythonFingerprintScript:
+    process.env.PYTHON_FINGERPRINT_SCRIPT || "python/fingerprint_service.py",
+  pythonBridgeTimeoutMs: Number(process.env.PYTHON_BRIDGE_TIMEOUT_MS || 30000)
 };

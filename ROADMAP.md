@@ -34,7 +34,7 @@
   - [x] Add Atlas-ready `MONGODB_URI` example in `backend/.env.example`
   - [ ] Create Atlas cluster + database user
   - [ ] Configure network access / IP allowlist
-  - [ ] Set `MONGODB_URI` in backend `.env.local` and verify `[db] MongoDB connected`
+  - [x] Set `MONGODB_URI` in backend `.env.local` and verify `[db] MongoDB connected`
 - [x] Create `.env.example` with required variables
 - [x] Scaffold Express server structure with basic middleware
 
@@ -88,9 +88,9 @@
 - [x] Error handling and response standardization
 
 **Person 2: Fingerprinting Integration**
-- [ ] Integrate fingerprint_service into asset upload pipeline
-- [ ] When asset uploaded → automatically generate fingerprint
-- [ ] Store fingerprint in DB
+- [x] Integrate fingerprint_service into asset upload pipeline
+- [x] When asset uploaded → automatically generate fingerprint
+- [x] Store fingerprint in DB
 - [ ] Implement batch fingerprinting for multiple files
 - [ ] Create unit tests for fingerprinting accuracy
 
