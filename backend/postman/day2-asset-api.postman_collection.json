@@ -1,0 +1,205 @@
+{
+  "info": {
+    "name": "Digital Asset Protection - Day 2 Asset API",
+    "description": "Manual API verification collection for Day 2 asset endpoints.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3001"
+    },
+    {
+      "key": "assetId",
+      "value": ""
+    },
+    {
+      "key": "fixturePath",
+      "value": "D:/Sanskar/programming/projects/Solution Challenge 2026/backend/fixtures/images/fixture-01.png"
+    }
+  ],
+  "item": [
+    {
+      "name": "Root - Service Status",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            ""
+          ]
+        }
+      }
+    },
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/health",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "health"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Create Asset",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "name",
+              "value": "Postman Fixture Upload",
+              "type": "text"
+            },
+            {
+              "key": "creator",
+              "value": "Postman QA",
+              "type": "text"
+            },
+            {
+              "key": "eventDate",
+              "value": "2026-04-14",
+              "type": "text"
+            },
+            {
+              "key": "media",
+              "type": "file",
+              "src": "{{fixturePath}}"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/assets",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "assets"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Create Asset returns 201', function () { pm.response.to.have.status(201); });",
+              "var json = pm.response.json();",
+              "if (json && json.data && json.data.asset && json.data.asset._id) {",
+              "  pm.collectionVariables.set('assetId', json.data.asset._id);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "List Assets",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/assets?page=1&limit=10",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "assets"
+          ],
+          "query": [
+            {
+              "key": "page",
+              "value": "1"
+            },
+            {
+              "key": "limit",
+              "value": "10"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Get Asset By ID",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/assets/{{assetId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "assets",
+            "{{assetId}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Batch Fingerprint",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"assetIds\": [\n    \"{{assetId}}\"\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/assets/fingerprints/batch",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "assets",
+            "fingerprints",
+            "batch"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Delete Asset",
+      "request": {
+        "method": "DELETE",
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/assets/{{assetId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "assets",
+            "{{assetId}}"
+          ]
+        }
+      }
+    }
+  ]
+}
