@@ -1,0 +1,6 @@
+pillow
+imagehash
+opencv-python
+requests
+beautifulsoup4
+selenium
