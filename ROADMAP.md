@@ -74,14 +74,14 @@
 #### Development Tasks
 
 **Person 1: Backend API - Asset Endpoints**
-- [ ] Create `/api/assets` endpoints:
+- [x] Create `/api/assets` endpoints:
   - `POST /assets` - Upload new media + metadata
   - `GET /assets` - List all registered assets
   - `GET /assets/{id}` - Get asset details
   - `DELETE /assets/{id}` - Remove asset
 - [ ] Implement file upload handling (store files in `uploads/` folder or cloud)
-- [ ] Add input validation (file size, format)
-- [ ] Error handling and response standardization
+- [x] Add input validation (file size, format)
+- [x] Error handling and response standardization
 
 **Person 2: Fingerprinting Integration**
 - [ ] Integrate fingerprint_service into asset upload pipeline
