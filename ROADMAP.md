@@ -134,12 +134,12 @@
 - [x] Add pagination for large result sets
 
 **Person 2: Detection Service**
-- [ ] Create detection_service.py:
+- [x] Create detection_service.py:
   - Compare asset fingerprint against crawled content
   - Calculate similarity score (0-100)
   - Flag as "match" if score > threshold (e.g., 85%)
-- [ ] Implement batch matching algorithm
-- [ ] Handle edge cases (corrupted images, very small files)
+- [x] Implement batch matching algorithm
+- [x] Handle edge cases (corrupted images, very small files)
 
 **Person 3: Basic Web Crawler**
 - [ ] Set up crawler_service.py skeleton

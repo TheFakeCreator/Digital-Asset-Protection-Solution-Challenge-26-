@@ -1,55 +1,103 @@
 const crypto = require("crypto");
+const fs = require("fs/promises");
+const path = require("path");
 
+const env = require("../config/env");
 const { Asset, Detection } = require("../models");
+const { compareImageBatch } = require("./detection.bridge");
 
 const detectionJobs = new Map();
 const pendingJobIds = [];
 let isQueueRunning = false;
 
-function hashToInt(input) {
-  const digest = crypto.createHash("sha256").update(input).digest("hex");
-  return parseInt(digest.slice(0, 8), 16);
+const platformConfigs = [
+  {
+    platform: "twitter",
+    buildUrl: (slug) => `https://x.com/sportswire/status/${slug}`
+  },
+  {
+    platform: "instagram",
+    buildUrl: (slug) => `https://instagram.com/p/${slug}`
+  },
+  {
+    platform: "reddit",
+    buildUrl: (slug) => `https://reddit.com/r/sports/comments/${slug}`
+  },
+  {
+    platform: "youtube",
+    buildUrl: (slug) => `https://youtube.com/watch?v=${slug}`
+  }
+];
+
+function resolveAbsoluteAssetPath(filePathValue) {
+  if (path.isAbsolute(filePathValue)) {
+    return filePathValue;
+  }
+
+  return path.resolve(process.cwd(), filePathValue);
 }
 
-function createCandidateDetections(asset) {
-  const seedInput = `${asset.fingerprintHash || asset._id.toString()}::${asset.name}`;
-  const seed = hashToInt(seedInput);
+async function fileExists(filePathValue) {
+  try {
+    await fs.access(filePathValue);
+    return true;
+  } catch (_error) {
+    return false;
+  }
+}
 
-  const platformConfigs = [
+async function buildCandidatePool(asset, referenceFilePath) {
+  const slugBase = `${asset._id.toString().slice(-6)}${(asset.fingerprintHash || "").slice(0, 6)}`;
+  const candidates = [
     {
+      imagePath: referenceFilePath,
       platform: "twitter",
-      buildUrl: (slug) => `https://x.com/sportswire/status/${slug}`
+      url: platformConfigs[0].buildUrl(`${slugBase}src0`)
     },
     {
+      imagePath: referenceFilePath,
       platform: "instagram",
-      buildUrl: (slug) => `https://instagram.com/p/${slug}`
-    },
-    {
-      platform: "reddit",
-      buildUrl: (slug) => `https://reddit.com/r/sports/comments/${slug}`
-    },
-    {
-      platform: "youtube",
-      buildUrl: (slug) => `https://youtube.com/watch?v=${slug}`
+      url: platformConfigs[1].buildUrl(`${slugBase}src1`)
     }
   ];
 
-  const slugBase = `${asset._id.toString().slice(-6)}${(asset.fingerprintHash || "").slice(0, 6)}`;
+  const fixtureDir = path.resolve(process.cwd(), "fixtures", "images");
+  let fixtureFileNames = [];
+  try {
+    const entries = await fs.readdir(fixtureDir, { withFileTypes: true });
+    fixtureFileNames = entries
+      .filter((entry) => entry.isFile())
+      .map((entry) => entry.name)
+      .filter((name) => /\.(png|jpg|jpeg|webp|gif)$/i.test(name))
+      .sort();
+  } catch (_error) {
+    fixtureFileNames = [];
+  }
 
-  return Array.from({ length: 3 }).map((_, index) => {
-    const platform = platformConfigs[(seed + index) % platformConfigs.length];
-    const confidence = 60 + ((seed >> (index * 4)) % 41);
-    const status = confidence >= 85 ? "confirmed" : "pending";
-    const suffix = `${slugBase}${index}`;
+  for (let index = 0; index < fixtureFileNames.length; index += 1) {
+    const fileName = fixtureFileNames[index];
+    const absolutePath = path.resolve(fixtureDir, fileName);
+    if (!(await fileExists(absolutePath))) {
+      continue;
+    }
 
-    return {
-      platform: platform.platform,
-      url: platform.buildUrl(suffix),
-      confidence,
-      status,
-      dateFound: new Date(Date.now() - index * 60 * 60 * 1000)
-    };
-  });
+    const platformConfig = platformConfigs[index % platformConfigs.length];
+    candidates.push({
+      imagePath: absolutePath,
+      platform: platformConfig.platform,
+      url: platformConfig.buildUrl(`${slugBase}${index}`)
+    });
+  }
+
+  return candidates;
+}
+
+function toDetectionStatus(similarityScore) {
+  if (similarityScore >= 95) {
+    return "confirmed";
+  }
+
+  return "pending";
 }
 
 async function runDetectionForAsset(assetId) {
@@ -58,16 +106,50 @@ async function runDetectionForAsset(assetId) {
     throw new Error(`Asset not found: ${assetId}`);
   }
 
-  const candidates = createCandidateDetections(asset);
+  if (!asset.filePath) {
+    throw new Error(`Asset file path missing: ${assetId}`);
+  }
+
+  const referenceFilePath = resolveAbsoluteAssetPath(asset.filePath);
+  if (!(await fileExists(referenceFilePath))) {
+    throw new Error(`Asset file not found: ${referenceFilePath}`);
+  }
+
+  const candidatePool = await buildCandidatePool(asset, referenceFilePath);
+  if (candidatePool.length === 0) {
+    return 0;
+  }
+
+  const comparison = await compareImageBatch(
+    referenceFilePath,
+    candidatePool.map((candidate) => candidate.imagePath),
+    env.detectionSimilarityThreshold
+  );
+
   const existing = await Detection.find({ assetId: asset._id }).select({ url: 1, _id: 0 }).lean();
   const existingUrls = new Set(existing.map((item) => item.url));
 
-  const newDetections = candidates
-    .filter((candidate) => !existingUrls.has(candidate.url))
-    .map((candidate) => ({
-      ...candidate,
-      assetId: asset._id
-    }));
+  const newDetections = [];
+  for (let index = 0; index < candidatePool.length; index += 1) {
+    const candidate = candidatePool[index];
+    const result = comparison.results[index];
+    if (!result || result.status !== "ok") {
+      continue;
+    }
+
+    if (!result.is_match || existingUrls.has(candidate.url)) {
+      continue;
+    }
+
+    newDetections.push({
+      assetId: asset._id,
+      platform: candidate.platform,
+      url: candidate.url,
+      confidence: result.similarity_score,
+      status: toDetectionStatus(result.similarity_score),
+      dateFound: new Date()
+    });
+  }
 
   if (newDetections.length === 0) {
     return 0;

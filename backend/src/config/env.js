@@ -20,5 +20,8 @@ module.exports = {
   hasCustomPythonExecutable: Boolean(process.env.PYTHON_EXECUTABLE),
   pythonFingerprintScript:
     process.env.PYTHON_FINGERPRINT_SCRIPT || "python/fingerprint_service.py",
-  pythonBridgeTimeoutMs: Number(process.env.PYTHON_BRIDGE_TIMEOUT_MS || 30000)
+  pythonDetectionScript:
+    process.env.PYTHON_DETECTION_SCRIPT || "python/detection_service.py",
+  pythonBridgeTimeoutMs: Number(process.env.PYTHON_BRIDGE_TIMEOUT_MS || 30000),
+  detectionSimilarityThreshold: Number(process.env.DETECTION_SIMILARITY_THRESHOLD || 85)
 };
