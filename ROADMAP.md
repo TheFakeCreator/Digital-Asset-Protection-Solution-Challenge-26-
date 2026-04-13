@@ -31,6 +31,10 @@
   - `Detection` model (id, asset_id, platform, url, confidence, date_found, status)
   - `Fingerprint` model (id, asset_id, hash_value, algorithm, created_at)
 - [ ] Set up connection to MongoDB Atlas (free tier)
+  - [x] Add Atlas-ready `MONGODB_URI` example in `backend/.env.example`
+  - [ ] Create Atlas cluster + database user
+  - [ ] Configure network access / IP allowlist
+  - [ ] Set `MONGODB_URI` in backend `.env.local` and verify `[db] MongoDB connected`
 - [x] Create `.env.example` with required variables
 - [x] Scaffold Express server structure with basic middleware
 
@@ -79,7 +83,7 @@
   - `GET /assets` - List all registered assets
   - `GET /assets/{id}` - Get asset details
   - `DELETE /assets/{id}` - Remove asset
-- [ ] Implement file upload handling (store files in `uploads/` folder or cloud)
+- [x] Implement file upload handling (store files in `uploads/` folder or cloud)
 - [x] Add input validation (file size, format)
 - [x] Error handling and response standardization
 

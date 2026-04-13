@@ -1,9 +1,11 @@
 const express = require("express");
 const mongoose = require("mongoose");
+const path = require("path");
 const { z } = require("zod");
 
 const { Asset } = require("../models");
 const { AppError } = require("../errors/app-error");
+const { uploadMedia } = require("../middleware/upload-media");
 
 const createAssetSchema = z.object({
   name: z.string().trim().min(1).max(120),
@@ -38,11 +40,40 @@ function assertDatabaseConnected() {
   }
 }
 
-router.post("/", async (req, res, next) => {
+function ensureDatabaseConnected(_req, _res, next) {
+  try {
+    assertDatabaseConnected();
+    next();
+  } catch (error) {
+    next(error);
+  }
+}
+
+function toPublicUploadUrl(file) {
+  return `/uploads/${file.filename}`;
+}
+
+router.post("/", ensureDatabaseConnected, uploadMedia.single("media"), async (req, res, next) => {
   try {
     const payload = parseOrThrow(createAssetSchema, req.body);
-    assertDatabaseConnected();
-    const asset = await Asset.create(payload);
+
+    if (!req.file) {
+      throw new AppError("Media file is required", 400, "FILE_REQUIRED");
+    }
+
+    const relativePath = path
+      .relative(process.cwd(), req.file.path)
+      .split(path.sep)
+      .join("/");
+
+    const asset = await Asset.create({
+      ...payload,
+      originalFileName: req.file.originalname,
+      mimeType: req.file.mimetype,
+      sizeBytes: req.file.size,
+      filePath: relativePath,
+      fileUrl: toPublicUploadUrl(req.file)
+    });
 
     res.status(201).json({
       success: true,
