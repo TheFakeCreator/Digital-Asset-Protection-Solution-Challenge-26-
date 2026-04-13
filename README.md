@@ -21,25 +21,29 @@ cd "d:\Sanskar\programming\projects\Solution Challenge 2026"
 # 2. Run installation script
 bash scripts/install-deps.sh
 
-# 3. Copy environment template
-cp .env.example .env.local
+# 3. Copy backend environment template
+cp backend/.env.example backend/.env.local
 
-# 4. Update .env.local with your configuration
-# - Add Google Cloud credentials
-# - Configure MongoDB connection (or use docker-compose)
+# 4. Update backend/.env.local with your configuration
+# - Configure MongoDB connection (local docker or Atlas)
+# - Optionally set PYTHON_EXECUTABLE if needed on your machine
 
-# 5. Start local services
-docker-compose up -d
+# 5. (Optional) Frontend API target
+# Create frontend/.env.local with:
+# NEXT_PUBLIC_API_URL=http://localhost:3001
 
-# 6. Start backend (in terminal 1)
+# 6. Start local services
+docker compose up -d
+
+# 7. Start backend (in terminal 1)
 cd backend
 pnpm run dev
 
-# 7. Start frontend (in terminal 2)
+# 8. Start frontend (in terminal 2)
 cd frontend
 pnpm run dev
 
-# 8. Access dashboard
+# 9. Access dashboard
 # Frontend: http://localhost:3000
 # Backend API: http://localhost:3001
 ```
@@ -162,7 +166,7 @@ pnpm run lint
 cd backend/python
 
 # Activate virtual environment
-source venv/bin/activate    # On Windows: venv\Scripts\activate
+source .venv/bin/activate    # On Windows: .venv\Scripts\activate
 
 # Generate fingerprint for image
 python fingerprint_service.py path/to/image.jpg
@@ -247,13 +251,13 @@ pytest
 
 ```bash
 # Start all services
-docker-compose up -d
+docker compose up -d
 
 # View logs
-docker-compose logs -f backend
+docker compose logs -f backend
 
 # Stop services
-docker-compose down
+docker compose down
 ```
 
 ### Deploy to Google Cloud

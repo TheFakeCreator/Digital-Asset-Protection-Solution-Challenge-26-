@@ -55,7 +55,13 @@ If branch is behind `origin/main`, rebase before opening PR:
 git rebase origin/main
 ```
 
-## 5. Agent Execution Loop (Per Issue)
+## 5. Day-Wise Gate Policy
+
+- Execute tasks in strict ROADMAP day order.
+- Do not start Day N+1 implementation until all code-actionable Day N tasks are complete.
+- If a dependency forces cross-day work, log the exception in `ROADMAP.md` with reason before implementation.
+
+## 6. Agent Execution Loop (Per Issue)
 
 For every agent-assisted task:
 
@@ -65,7 +71,7 @@ For every agent-assisted task:
 4. Re-run sync check before push.
 5. Push and post status in issue with blockers/next step.
 
-## 6. Issue Lifecycle
+## 7. Issue Lifecycle
 
 Use labels/status flow:
 
@@ -81,7 +87,7 @@ If blocked more than 30 minutes:
 3. Assign owner and helper.
 4. Reduce parent issue scope if needed.
 
-## 7. If Something Goes Off
+## 8. If Something Goes Off
 
 If branch breaks or conflicts become risky:
 
@@ -99,7 +105,7 @@ git switch -c rescue/<issue-number>-short-name origin/main
 git cherry-pick <safe-commit-sha>
 ```
 
-## 8. Day 1 Issue Split (Start Now)
+## 9. Day 1 Issue Split (Start Now)
 
 Create these first issues now:
 
