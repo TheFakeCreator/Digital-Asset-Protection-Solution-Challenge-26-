@@ -26,7 +26,7 @@
 - [x] Initialize Node.js project: `pnpm init`
 - [x] Install core dependencies: `pnpm add express dotenv cors mongoose redis`
 - [x] Install dev dependencies: `pnpm add -D nodemon`
-- [ ] Create MongoDB schema via Mongoose:
+- [x] Create MongoDB schema via Mongoose:
   - `Asset` model (id, name, creator, event_date, upload_date, fingerprint_hash)
   - `Detection` model (id, asset_id, platform, url, confidence, date_found, status)
   - `Fingerprint` model (id, asset_id, hash_value, algorithm, created_at)
