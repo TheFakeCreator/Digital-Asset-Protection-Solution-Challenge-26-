@@ -142,14 +142,14 @@
 - [x] Handle edge cases (corrupted images, very small files)
 
 **Person 3: Basic Web Crawler**
-- [ ] Set up crawler_service.py skeleton
-- [ ] Target Platform 1: Twitter/X
+- [x] Set up crawler_service.py skeleton
+- [x] Target Platform 1: Twitter/X
   - Use Twitter API (or scraping if no API access)
   - Search for keywords related to sports (e.g., "sports", "athletic", event names)
   - Extract image URLs from results
   - Store locally for fingerprint comparison
-- [ ] Implement retry logic and rate limiting
-- [ ] Crawl sample data (100-500 images for testing)
+- [x] Implement retry logic and rate limiting
+- [x] Crawl sample data (100-500 images for testing)
 
 **Person 4: Frontend - Detections Dashboard**
 - [ ] Create detections view component

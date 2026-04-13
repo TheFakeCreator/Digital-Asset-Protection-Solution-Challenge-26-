@@ -6,6 +6,8 @@ const env = require("../config/env");
 const { Asset, Detection } = require("../models");
 const { compareImageBatch } = require("./detection.bridge");
 
+const MAX_DETECTIONS_PER_JOB = 5;
+
 const detectionJobs = new Map();
 const pendingJobIds = [];
 let isQueueRunning = false;
@@ -29,6 +31,10 @@ const platformConfigs = [
   }
 ];
 
+function choosePlatform(index) {
+  return platformConfigs[index % platformConfigs.length];
+}
+
 function resolveAbsoluteAssetPath(filePathValue) {
   if (path.isAbsolute(filePathValue)) {
     return filePathValue;
@@ -46,6 +52,62 @@ async function fileExists(filePathValue) {
   }
 }
 
+async function loadCrawlerItems() {
+  const manifestPath = path.resolve(env.crawlerOutputDir, "latest.json");
+
+  try {
+    const raw = await fs.readFile(manifestPath, "utf-8");
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed.items)) {
+      return [];
+    }
+    return parsed.items;
+  } catch (_error) {
+    return [];
+  }
+}
+
+function normalizeCandidatePath(filePathValue) {
+  if (!filePathValue) {
+    return "";
+  }
+
+  return path.isAbsolute(filePathValue) ? filePathValue : path.resolve(process.cwd(), filePathValue);
+}
+
+async function buildCrawlerCandidates(slugBase) {
+  const items = await loadCrawlerItems();
+  const candidates = [];
+
+  for (let index = 0; index < items.length; index += 1) {
+    const item = items[index];
+    const imagePath = normalizeCandidatePath(item.local_path || item.localPath || "");
+    if (!imagePath) {
+      continue;
+    }
+
+    if (!(await fileExists(imagePath))) {
+      continue;
+    }
+
+    const platform = (item.platform || choosePlatform(index).platform).toLowerCase();
+    const fallbackUrl = choosePlatform(index).buildUrl(`${slugBase}cr${index}`);
+    const url = item.source_url || item.sourceUrl || item.image_url || fallbackUrl;
+
+    candidates.push({
+      imagePath,
+      platform,
+      url
+    });
+
+    if (candidates.length >= 150) {
+      break;
+    }
+  }
+
+  return candidates;
+}
+
 async function buildCandidatePool(asset, referenceFilePath) {
   const slugBase = `${asset._id.toString().slice(-6)}${(asset.fingerprintHash || "").slice(0, 6)}`;
   const candidates = [
@@ -60,6 +122,20 @@ async function buildCandidatePool(asset, referenceFilePath) {
       url: platformConfigs[1].buildUrl(`${slugBase}src1`)
     }
   ];
+
+  const crawlerCandidates = await buildCrawlerCandidates(slugBase);
+  if (crawlerCandidates.length > 0) {
+    const dedupe = new Set(candidates.map((item) => `${item.imagePath}::${item.url}`));
+    for (const candidate of crawlerCandidates) {
+      const key = `${candidate.imagePath}::${candidate.url}`;
+      if (dedupe.has(key)) {
+        continue;
+      }
+      dedupe.add(key);
+      candidates.push(candidate);
+    }
+    return candidates;
+  }
 
   const fixtureDir = path.resolve(process.cwd(), "fixtures", "images");
   let fixtureFileNames = [];
@@ -155,8 +231,12 @@ async function runDetectionForAsset(assetId) {
     return 0;
   }
 
-  await Detection.insertMany(newDetections);
-  return newDetections.length;
+  const topDetections = newDetections
+    .sort((a, b) => b.confidence - a.confidence)
+    .slice(0, MAX_DETECTIONS_PER_JOB);
+
+  await Detection.insertMany(topDetections);
+  return topDetections.length;
 }
 
 function toJobResponse(job) {
