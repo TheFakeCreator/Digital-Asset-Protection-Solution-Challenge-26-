@@ -70,6 +70,9 @@ pnpm run dev
 │   │   ├── models/              # MongoDB models (Mongoose)
 │   │   └── middleware/          # Express middleware
 │   ├── python/                  # Python workers (fingerprinting, crawling)
+│   ├── fixtures/                # Manual testing image fixtures
+│   ├── docs/                    # API contracts and test reports
+│   ├── postman/                 # Postman collections for manual API testing
 │   ├── package.json
 │   └── .env.example
 ├── frontend/                    # Next.js dashboard
@@ -184,6 +187,9 @@ python crawler_worker.py --platform twitter
 - **[PLAN.md](./PLAN.md)** - Project strategy, architecture, tech stack rationale
 - **[ROADMAP.md](./ROADMAP.md)** - 10-day sprint plan with daily tasks and milestones
 - **[TEAM_OPERATING_MODEL.md](./TEAM_OPERATING_MODEL.md)** - Issue/branch/sync protocol for 4-person collaboration
+- **[backend/docs/asset-api-contract.md](./backend/docs/asset-api-contract.md)** - Asset endpoint request and response contract
+- **[backend/docs/reports/day2-asset-endpoint-manual-test.md](./backend/docs/reports/day2-asset-endpoint-manual-test.md)** - Manual Day 2 asset endpoint smoke report
+- **[backend/postman/day2-asset-api.postman_collection.json](./backend/postman/day2-asset-api.postman_collection.json)** - Postman collection for Day 2 asset APIs
 - **[.github/AGENTS.md](./.github/AGENTS.md)** - Workspace-level agent routing and guardrails
 - **[.github/agents/](./.github/agents/)** - Executable domain agents (`*.agent.md`)
 - **[.github/skills/README.md](./.github/skills/README.md)** - Skills catalog and modular skill folders
@@ -247,6 +253,13 @@ pnpm run test
 cd backend/python
 source .venv/bin/activate
 python -m unittest -v test_fingerprint_accuracy.py
+
+# Generate 6 sample fixture images for manual API testing
+python generate_asset_fixtures.py
+
+# Run manual Day 2 asset endpoint smoke script (PowerShell)
+cd ../scripts
+./manual_asset_api_smoke.ps1 -FixtureFile "../fixtures/images/fixture-01.png"
 ```
 
 ## 🐳 Docker & Deployment

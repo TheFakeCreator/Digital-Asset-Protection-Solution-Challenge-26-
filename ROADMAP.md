@@ -95,10 +95,10 @@
 - [x] Create unit tests for fingerprinting accuracy
 
 **Person 3: API Documentation & Testing**
-- [ ] Set up Postman/Insomnia collections for all endpoints
-- [ ] Document expected request/response formats
-- [ ] Test all asset endpoints manually
-- [ ] Create test data fixtures (5-10 sample images)
+- [x] Set up Postman/Insomnia collections for all endpoints
+- [x] Document expected request/response formats
+- [x] Test all asset endpoints manually
+- [x] Create test data fixtures (5-10 sample images)
 
 **Person 4: Frontend - Asset Upload UI**
 - [x] Create upload form component
