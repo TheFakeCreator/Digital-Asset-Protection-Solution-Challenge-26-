@@ -152,11 +152,11 @@
 - [x] Crawl sample data (100-500 images for testing)
 
 **Person 4: Frontend - Detections Dashboard**
-- [ ] Create detections view component
-- [ ] Display list of detections per asset
-- [ ] Show detected image, source URL, confidence score
-- [ ] Add filters: platform, confidence range, date
-- [ ] Button to trigger new detection run on asset
+- [x] Create detections view component
+- [x] Display list of detections per asset
+- [x] Show detected image, source URL, confidence score
+- [x] Add filters: platform, confidence range, date
+- [x] Button to trigger new detection run on asset
 
 #### End of Day Deliverables
 - ✅ Detection API endpoints created and tested

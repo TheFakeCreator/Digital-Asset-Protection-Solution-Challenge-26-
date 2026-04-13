@@ -164,7 +164,7 @@ pnpm run lint
 **Key Pages:**
 - `/` - Dashboard (asset overview)
 - `/upload` - Upload new sports media
-- `/detections` - View detection results
+- `/detections` - Trigger detection runs and filter confidence-scored results
 
 ### Python Fingerprinting
 
