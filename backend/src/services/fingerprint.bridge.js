@@ -53,9 +53,15 @@ function buildPythonCandidates() {
   });
 }
 
-function runFingerprintWithCandidate(candidate, scriptPath, imagePath, timeoutMs) {
+function resolveBatchFingerprintScript() {
+  const singleScriptPath = resolveFingerprintScript();
+  const batchScriptPath = path.resolve(path.dirname(singleScriptPath), "batch_fingerprint_service.py");
+  return batchScriptPath;
+}
+
+function runScriptWithCandidate(candidate, scriptPath, scriptArgs, timeoutMs, responseParser) {
   return new Promise((resolve, reject) => {
-    const args = [...candidate.prefixArgs, scriptPath, imagePath];
+    const args = [...candidate.prefixArgs, scriptPath, ...scriptArgs];
     const pythonProcess = spawn(candidate.command, args, {
       stdio: ["ignore", "pipe", "pipe"]
     });
@@ -115,10 +121,7 @@ function runFingerprintWithCandidate(candidate, scriptPath, imagePath, timeoutMs
 
       try {
         const parsed = JSON.parse(stdout);
-        if (!parsed.hash || !parsed.algorithm) {
-          throw new Error("Missing hash or algorithm in fingerprint response");
-        }
-        resolve(parsed);
+        resolve(responseParser(parsed));
       } catch (error) {
         reject(
           new AppError(
@@ -132,6 +135,27 @@ function runFingerprintWithCandidate(candidate, scriptPath, imagePath, timeoutMs
   });
 }
 
+function parseSingleFingerprintResponse(parsed) {
+  if (!parsed.hash || !parsed.algorithm) {
+    throw new Error("Missing hash or algorithm in fingerprint response");
+  }
+  return parsed;
+}
+
+function parseBatchFingerprintResponse(parsed) {
+  if (!Array.isArray(parsed.results)) {
+    throw new Error("Missing batch results array");
+  }
+
+  for (const result of parsed.results) {
+    if (!result.hash || !result.algorithm || !result.input_path) {
+      throw new Error("Invalid batch result item");
+    }
+  }
+
+  return parsed.results;
+}
+
 async function generateFingerprint(imagePath) {
   const scriptPath = resolveFingerprintScript();
   const timeoutMs = env.pythonBridgeTimeoutMs || 30000;
@@ -140,7 +164,43 @@ async function generateFingerprint(imagePath) {
   let lastError;
   for (const candidate of candidates) {
     try {
-      return await runFingerprintWithCandidate(candidate, scriptPath, imagePath, timeoutMs);
+      return await runScriptWithCandidate(
+        candidate,
+        scriptPath,
+        [imagePath],
+        timeoutMs,
+        parseSingleFingerprintResponse
+      );
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw (
+    lastError ||
+    new AppError("No Python executable candidates were available", 502, "FINGERPRINT_PROCESS_ERROR")
+  );
+}
+
+async function generateBatchFingerprints(imagePaths) {
+  if (!Array.isArray(imagePaths) || imagePaths.length === 0) {
+    throw new AppError("At least one image path is required", 400, "VALIDATION_ERROR");
+  }
+
+  const scriptPath = resolveBatchFingerprintScript();
+  const timeoutMs = env.pythonBridgeTimeoutMs || 30000;
+  const candidates = buildPythonCandidates();
+
+  let lastError;
+  for (const candidate of candidates) {
+    try {
+      return await runScriptWithCandidate(
+        candidate,
+        scriptPath,
+        imagePaths,
+        timeoutMs,
+        parseBatchFingerprintResponse
+      );
     } catch (error) {
       lastError = error;
     }
@@ -153,5 +213,6 @@ async function generateFingerprint(imagePath) {
 }
 
 module.exports = {
-  generateFingerprint
+  generateFingerprint,
+  generateBatchFingerprints
 };
