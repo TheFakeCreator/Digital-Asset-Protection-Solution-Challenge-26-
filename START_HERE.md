@@ -11,6 +11,18 @@
 
 Your team has a **complete, production-ready project skeleton** with all infrastructure, documentation, and AI coordination systems in place. You can start coding immediately.
 
+## 🚦 Start-Now Collaboration Protocol (First 30 Minutes)
+
+Before coding, align everyone on one operating flow:
+
+1. Create Day 1 GitHub issues (one issue per work unit).
+2. Assign one owner + one reviewer per issue.
+3. Create one branch per issue using naming like `feat/12-short-name`.
+4. Run periodic remote sync checks every 60-90 minutes.
+5. If blocked >30 minutes, open a blocker issue immediately.
+
+Use [TEAM_OPERATING_MODEL.md](./TEAM_OPERATING_MODEL.md) as the authoritative branch/issue/sync process.
+
 ### Core Project Documents (5 files)
 
 ✅ **[PLAN.md](./PLAN.md)** (Updated)
@@ -46,6 +58,12 @@ Your team has a **complete, production-ready project skeleton** with all infrast
 - Critical file locations
 - Common mistakes to avoid
 - Success criteria for each checkpoint
+
+✅ **[TEAM_OPERATING_MODEL.md](./TEAM_OPERATING_MODEL.md)** (Created)
+- One-issue-one-branch workflow
+- Periodic sync cadence and rebase rules
+- Blocker escalation and rescue flow
+- Day 1 issue split for 4 team members
 
 ---
 

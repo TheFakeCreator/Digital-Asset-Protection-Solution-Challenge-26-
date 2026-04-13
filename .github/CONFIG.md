@@ -71,18 +71,22 @@ This document captures the finalized tech stack and team guidelines for the hack
 PROJECT_ROOT
 ├── PLAN.md                          ← Strategy & architecture
 ├── ROADMAP.md                       ← Daily execution (updated each day)
+├── TEAM_OPERATING_MODEL.md          ← Issue + branch + sync operating rules
 ├── SETUP_COMPLETE.md                ← This file's summary
 ├── README.md                        ← Getting started guide
 ├── .github/
 │   ├── AGENTS.md                    ← Workspace agent routing
 │   ├── agents/*.agent.md            ← Executable custom agents
+│   ├── ISSUE_TEMPLATE/*.md          ← Feature/bug/blocker issue templates
+│   ├── pull_request_template.md     ← Standard PR checklist
 │   ├── instructions/*.instructions.md ← On-demand project instructions
 │   ├── skills/<name>/SKILL.md       ← Modular Copilot skills
 │   ├── prompts/*.prompt.md          ← Prompt library
 │   └── hooks/*.json                 ← Copilot hook configurations
 ├── scripts/
 │   ├── install-deps.sh              ← One-time setup
-│   └── update-docs.sh               ← Documentation validation
+│   ├── update-docs.sh               ← Documentation validation
+│   └── git-sync-check.sh            ← Branch sync status check
 ├── .githooks/pre-commit             ← Git hook validation
 ├── backend/                         ← Node.js backend
 │   ├── src/                         ← Express app code

@@ -16,6 +16,9 @@
 - [ ] Assign roles and responsibilities
 - [ ] Define git workflow and repository structure
 - [ ] Agree on API contracts and data models
+- [ ] Create Day 1 GitHub issues and assign owners/reviewers
+- [ ] Enforce one-issue-one-branch naming convention
+- [ ] Agree on 60-90 minute remote sync cadence (`bash scripts/git-sync-check.sh`)
 
 #### Development Tasks
 

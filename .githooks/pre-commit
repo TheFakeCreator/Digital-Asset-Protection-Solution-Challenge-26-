@@ -85,5 +85,17 @@ if ! ls .github/hooks/*.json > /dev/null 2>&1; then
     echo -e "${YELLOW}⚠️  Warning: no .github/hooks/*.json files found${NC}"
 fi
 
+if [ ! -f "TEAM_OPERATING_MODEL.md" ]; then
+    echo -e "${YELLOW}⚠️  Warning: TEAM_OPERATING_MODEL.md not found${NC}"
+fi
+
+if ! ls .github/ISSUE_TEMPLATE/*.md > /dev/null 2>&1; then
+    echo -e "${YELLOW}⚠️  Warning: no .github/ISSUE_TEMPLATE/*.md files found${NC}"
+fi
+
+if [ ! -f ".github/pull_request_template.md" ]; then
+    echo -e "${YELLOW}⚠️  Warning: .github/pull_request_template.md not found${NC}"
+fi
+
 echo -e "${GREEN}✓ Pre-commit checks passed${NC}"
 exit 0

@@ -175,6 +175,7 @@ python crawler_worker.py --platform twitter
 
 - **[PLAN.md](./PLAN.md)** - Project strategy, architecture, tech stack rationale
 - **[ROADMAP.md](./ROADMAP.md)** - 10-day sprint plan with daily tasks and milestones
+- **[TEAM_OPERATING_MODEL.md](./TEAM_OPERATING_MODEL.md)** - Issue/branch/sync protocol for 4-person collaboration
 - **[.github/AGENTS.md](./.github/AGENTS.md)** - Workspace-level agent routing and guardrails
 - **[.github/agents/](./.github/agents/)** - Executable domain agents (`*.agent.md`)
 - **[.github/skills/README.md](./.github/skills/README.md)** - Skills catalog and modular skill folders
@@ -199,19 +200,24 @@ bash scripts/update-docs.sh
 ## 🔄 Git Workflow
 
 ```bash
-# Create feature branch
-git checkout -b feature/asset-upload
+# 1) Start from a GitHub issue (#12 example)
+git fetch origin
+git checkout -b feat/12-asset-upload origin/main
 
-# Make changes and commit
+# 2) Make focused changes and commit
 git add .
 git commit -m "feat: add asset upload endpoint"
 
-# Push to remote
-git push origin feature/asset-upload
+# 3) Periodic sync check (run every 60-90 min)
+bash scripts/git-sync-check.sh
 
-# Create pull request on GitHub
-# Team reviews and merges to main
+# 4) Push branch
+git push -u origin feat/12-asset-upload
+
+# 5) Create PR linked to issue and request review
 ```
+
+Use one branch per issue and one PR per branch. Full collaboration protocol is in [TEAM_OPERATING_MODEL.md](./TEAM_OPERATING_MODEL.md).
 
 **Pre-commit Hook:** Automatically validates documentation before commits
 ```bash

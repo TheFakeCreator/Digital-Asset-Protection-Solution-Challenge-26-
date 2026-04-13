@@ -68,6 +68,18 @@ if ! ls "$PROJECT_ROOT"/.github/hooks/*.json > /dev/null 2>&1; then
     echo "⚠ Warning: no .github/hooks/*.json files found"
 fi
 
+if [ ! -f "$PROJECT_ROOT/TEAM_OPERATING_MODEL.md" ]; then
+    echo "⚠ Warning: TEAM_OPERATING_MODEL.md not found"
+fi
+
+if ! ls "$PROJECT_ROOT"/.github/ISSUE_TEMPLATE/*.md > /dev/null 2>&1; then
+    echo "⚠ Warning: no .github/ISSUE_TEMPLATE/*.md files found"
+fi
+
+if [ ! -f "$PROJECT_ROOT/.github/pull_request_template.md" ]; then
+    echo "⚠ Warning: .github/pull_request_template.md not found"
+fi
+
 # Validate tech stack consistency
 echo "✓ Checking tech stack consistency..."
 if ! grep -q "Node.js" "$PROJECT_ROOT/PLAN.md"; then
