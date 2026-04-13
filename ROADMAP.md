@@ -23,36 +23,36 @@
 #### Development Tasks
 
 **Person 1: Backend Infrastructure**
-- [ ] Initialize Node.js project: `pnpm init`
-- [ ] Install core dependencies: `pnpm add express dotenv cors mongoose redis`
-- [ ] Install dev dependencies: `pnpm add -D nodemon`
+- [x] Initialize Node.js project: `pnpm init`
+- [x] Install core dependencies: `pnpm add express dotenv cors mongoose redis`
+- [x] Install dev dependencies: `pnpm add -D nodemon`
 - [ ] Create MongoDB schema via Mongoose:
   - `Asset` model (id, name, creator, event_date, upload_date, fingerprint_hash)
   - `Detection` model (id, asset_id, platform, url, confidence, date_found, status)
   - `Fingerprint` model (id, asset_id, hash_value, algorithm, created_at)
 - [ ] Set up connection to MongoDB Atlas (free tier)
-- [ ] Create `.env.example` with required variables
-- [ ] Scaffold Express server structure with basic middleware
+- [x] Create `.env.example` with required variables
+- [x] Scaffold Express server structure with basic middleware
 
 **Person 2: Fingerprinting POC**
 - [ ] Set up Python virtual environment: `python -m venv venv`
 - [ ] Install packages: `pip install pillow imagehash opencv-python requests`
-- [ ] Create `backend/python/fingerprint_service.py` 
-- [ ] Write basic image fingerprinting (generate hash for 1 image)
+- [x] Create `backend/python/fingerprint_service.py` 
+- [x] Write basic image fingerprinting (generate hash for 1 image)
 - [ ] Test consistency (same image = same hash)
 - [ ] Create Python bridge for Node.js to call (via child_process)
 
 **Person 3: Project Setup**
-- [ ] Create GitHub repo structure
+- [x] Create GitHub repo structure
 - [ ] Initialize docker-compose.yml for MongoDB + Redis
 - [ ] Create Dockerfile for Node.js backend
-- [ ] Create Next.js project: `pnpm create next-app@latest frontend --typescript --tailwind --app`
-- [ ] **Important:** Verify Tailwind CSS is already working (NOT installed separately)
+- [x] Create Next.js project: `pnpm create next-app@latest frontend --typescript --tailwind --app`
+- [x] **Important:** Verify Tailwind CSS is already working (NOT installed separately)
 
 **Person 4: Frontend Scaffold**
-- [ ] Next.js project created with automatic routing
-- [ ] Set up `app/layout.js` (main layout with Tailwind)
-- [ ] Create initial pages: `app/page.js`, `app/upload/page.js`, `app/detections/page.js`
+- [x] Next.js project created with automatic routing
+- [x] Set up `app/layout.js` (main layout with Tailwind)
+- [x] Create initial pages: `app/page.js`, `app/upload/page.js`, `app/detections/page.js`
 - [ ] Set up API client (fetch or axios via pnpm)
 - [ ] Create basic navigation component with Tailwind styling
 - [ ] Verify hot reload and Tailwind CSS theming
