@@ -83,6 +83,9 @@ tmp/
 *.bak
 *.log
 
+# Uploaded media artifacts
+backend/uploads/
+
 # Docker
 .dockerignore
 docker-compose.override.yml

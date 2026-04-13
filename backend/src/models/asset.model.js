@@ -25,6 +25,31 @@ const assetSchema = new mongoose.Schema(
       index: true,
       default: ""
     },
+    originalFileName: {
+      type: String,
+      default: "",
+      trim: true
+    },
+    mimeType: {
+      type: String,
+      default: "",
+      trim: true
+    },
+    sizeBytes: {
+      type: Number,
+      default: 0,
+      min: 0
+    },
+    filePath: {
+      type: String,
+      default: "",
+      trim: true
+    },
+    fileUrl: {
+      type: String,
+      default: "",
+      trim: true
+    },
     status: {
       type: String,
       enum: ["active", "archived"],
