@@ -1,0 +1,89 @@
+#!/bin/bash
+# .git/hooks/pre-commit
+# Validates documentation before commit
+# Setup: chmod +x .git/hooks/pre-commit
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+echo "🔍 Pre-commit checks..."
+
+# Check if PLAN.md exists
+if [ ! -f "PLAN.md" ]; then
+    echo -e "${RED}❌ Error: PLAN.md not found${NC}"
+    exit 1
+fi
+
+# Check if ROADMAP.md exists
+if [ ! -f "ROADMAP.md" ]; then
+    echo -e "${RED}❌ Error: ROADMAP.md not found${NC}"
+    exit 1
+fi
+
+# Validate markdown headers in PLAN.md
+if ! grep -q "^# " PLAN.md; then
+    echo -e "${RED}❌ Error: PLAN.md missing main header${NC}"
+    exit 1
+fi
+
+# Validate markdown headers in ROADMAP.md
+if ! grep -q "^# " ROADMAP.md; then
+    echo -e "${RED}❌ Error: ROADMAP.md missing main header${NC}"
+    exit 1
+fi
+
+# Check for common tech stack references are consistent
+if grep -q "FastAPI" PLAN.md || grep -q "PostgreSQL" PLAN.md; then
+    echo -e "${YELLOW}⚠️  Warning: PLAN.md contains outdated tech stack references${NC}"
+    echo "   Expected: Node.js, MongoDB, Next.js"
+    echo "   This might be intentional for historical reasons"
+fi
+
+# Check pnpm-lock.yaml exists if node_modules not excluded
+if [ -d "backend" ] || [ -d "frontend" ]; then
+    if ! grep -q "pnpm-lock.yaml" .gitignore 2>/dev/null; then
+        if [ ! -f "pnpm-lock.yaml" ] && [ ! -f "backend/package.json" ] && [ ! -f "frontend/package.json" ]; then
+            echo -e "${YELLOW}⚠️  Warning: No pnpm-lock.yaml found (might be needed if using pnpm)${NC}"
+        fi
+    fi
+fi
+
+# Check for sensitive files
+SENSITIVE_FILES=(".env" "credentials/" "service-account.json" "*.key")
+for file in "${SENSITIVE_FILES[@]}"; do
+    if git diff --cached --name-only | grep -q "$file"; then
+        echo -e "${RED}❌ Error: Attempting to commit sensitive file: $file${NC}"
+        exit 1
+    fi
+done
+
+# Validate GitHub folder structure
+if [ ! -f ".github/AGENTS.md" ]; then
+    echo -e "${YELLOW}⚠️  Warning: .github/AGENTS.md not found${NC}"
+fi
+
+if ! ls .github/agents/*.agent.md > /dev/null 2>&1; then
+    echo -e "${YELLOW}⚠️  Warning: no .github/agents/*.agent.md files found${NC}"
+fi
+
+if ! ls .github/skills/*/SKILL.md > /dev/null 2>&1; then
+    echo -e "${YELLOW}⚠️  Warning: no .github/skills/*/SKILL.md files found${NC}"
+fi
+
+if ! ls .github/prompts/*.prompt.md > /dev/null 2>&1; then
+    echo -e "${YELLOW}⚠️  Warning: no .github/prompts/*.prompt.md files found${NC}"
+fi
+
+if ! ls .github/instructions/*.instructions.md > /dev/null 2>&1; then
+    echo -e "${YELLOW}⚠️  Warning: no .github/instructions/*.instructions.md files found${NC}"
+fi
+
+if ! ls .github/hooks/*.json > /dev/null 2>&1; then
+    echo -e "${YELLOW}⚠️  Warning: no .github/hooks/*.json files found${NC}"
+fi
+
+echo -e "${GREEN}✓ Pre-commit checks passed${NC}"
+exit 0

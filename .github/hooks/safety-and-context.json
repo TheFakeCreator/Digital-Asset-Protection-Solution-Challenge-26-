@@ -1,0 +1,22 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "type": "command",
+        "windows": "node scripts/hooks/session-start-context.cjs",
+        "linux": "node ./scripts/hooks/session-start-context.cjs",
+        "osx": "node ./scripts/hooks/session-start-context.cjs",
+        "timeout": 10
+      }
+    ],
+    "PreToolUse": [
+      {
+        "type": "command",
+        "windows": "node scripts/hooks/pre-tool-safety.cjs",
+        "linux": "node ./scripts/hooks/pre-tool-safety.cjs",
+        "osx": "node ./scripts/hooks/pre-tool-safety.cjs",
+        "timeout": 10
+      }
+    ]
+  }
+}
