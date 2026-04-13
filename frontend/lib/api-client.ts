@@ -23,18 +23,41 @@ export type HealthResponse = {
   uptimeSeconds: number;
 };
 
+export type Asset = {
+  _id: string;
+  name: string;
+  creator: string;
+  eventDate: string;
+  uploadDate: string;
+  fingerprintHash: string;
+  originalFileName?: string;
+  mimeType?: string;
+  sizeBytes?: number;
+  filePath?: string;
+  fileUrl?: string;
+};
+
 export type AssetListResponse = {
-  items: Array<{
-    _id: string;
-    name: string;
-    creator: string;
-    eventDate: string;
-    uploadDate: string;
-    fingerprintHash: string;
-  }>;
+  items: Asset[];
   page: number;
   limit: number;
   total: number;
+};
+
+export type UploadAssetInput = {
+  name: string;
+  creator: string;
+  eventDate: string;
+  mediaFile: File;
+};
+
+export type UploadAssetResponse = {
+  asset: Asset;
+  fingerprint: {
+    hash: string;
+    algorithm: string;
+    input_path?: string;
+  };
 };
 
 function buildUrl(pathname: string) {
@@ -45,13 +68,15 @@ function buildUrl(pathname: string) {
 }
 
 async function requestApi<T>(pathname: string, init?: RequestInit): Promise<T> {
+  const headers = new Headers(init?.headers || {});
+  if (!headers.has("Accept")) {
+    headers.set("Accept", "application/json");
+  }
+
   const response = await fetch(buildUrl(pathname), {
     ...init,
     cache: "no-store",
-    headers: {
-      Accept: "application/json",
-      ...(init?.headers || {})
-    }
+    headers
   });
 
   let payload: ApiEnvelope<T> | null = null;
@@ -81,4 +106,33 @@ export function fetchHealth() {
 
 export function fetchAssets(page = 1, limit = 5) {
   return requestApi<AssetListResponse>(`/api/v1/assets?page=${page}&limit=${limit}`);
+}
+
+export function createAsset(input: UploadAssetInput) {
+  const formData = new FormData();
+  formData.append("name", input.name.trim());
+  formData.append("creator", input.creator.trim());
+  formData.append("eventDate", input.eventDate);
+  formData.append("media", input.mediaFile);
+
+  return requestApi<UploadAssetResponse>("/api/v1/assets", {
+    method: "POST",
+    body: formData
+  });
+}
+
+export function toAssetFileUrl(fileUrl?: string) {
+  if (!fileUrl) {
+    return "";
+  }
+
+  if (/^https?:\/\//.test(fileUrl)) {
+    return fileUrl;
+  }
+
+  if (fileUrl.startsWith("/")) {
+    return `${API_BASE_URL}${fileUrl}`;
+  }
+
+  return `${API_BASE_URL}/${fileUrl}`;
 }

@@ -101,12 +101,12 @@
 - [ ] Create test data fixtures (5-10 sample images)
 
 **Person 4: Frontend - Asset Upload UI**
-- [ ] Create upload form component
-- [ ] File input with preview
-- [ ] Metadata form (event name, date, creator)
-- [ ] Submit to backend API
-- [ ] Show success/error messages
-- [ ] Display uploaded assets list
+- [x] Create upload form component
+- [x] File input with preview
+- [x] Metadata form (event name, date, creator)
+- [x] Submit to backend API
+- [x] Show success/error messages
+- [x] Display uploaded assets list
 
 #### End of Day Deliverables
 - ✅ Asset CRUD API fully functional
