@@ -9,12 +9,18 @@ const resolvedUploadDir = path.isAbsolute(configuredUploadDir)
   ? configuredUploadDir
   : path.resolve(process.cwd(), configuredUploadDir);
 
+const configuredCrawlerOutputDir = process.env.CRAWLER_OUTPUT_DIR || "data/crawled/twitter";
+const resolvedCrawlerOutputDir = path.isAbsolute(configuredCrawlerOutputDir)
+  ? configuredCrawlerOutputDir
+  : path.resolve(process.cwd(), configuredCrawlerOutputDir);
+
 module.exports = {
   port: Number(process.env.PORT || 3001),
   nodeEnv: process.env.NODE_ENV || "development",
   mongoUri: process.env.MONGODB_URI || "",
   corsOrigin: process.env.CORS_ORIGIN || "http://localhost:3000",
   uploadDir: resolvedUploadDir,
+  crawlerOutputDir: resolvedCrawlerOutputDir,
   maxUploadSizeMb: Number(process.env.MAX_UPLOAD_SIZE_MB || 10),
   pythonExecutable: process.env.PYTHON_EXECUTABLE || "python",
   hasCustomPythonExecutable: Boolean(process.env.PYTHON_EXECUTABLE),

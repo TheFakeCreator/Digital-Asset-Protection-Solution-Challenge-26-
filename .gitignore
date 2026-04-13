@@ -90,6 +90,9 @@ tmp/
 # Uploaded media artifacts
 backend/uploads/
 
+# Generated crawler output artifacts
+backend/data/crawled/
+
 # Docker
 .dockerignore
 docker-compose.override.yml

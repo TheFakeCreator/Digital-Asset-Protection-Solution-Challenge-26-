@@ -183,8 +183,11 @@ python batch_fingerprint_service.py path/to/image1.jpg path/to/image2.jpg
 # Compare one reference image against multiple candidate images
 python detection_service.py --reference path/to/reference.jpg path/to/candidate1.jpg path/to/candidate2.jpg
 
-# Run crawler
-python crawler_worker.py --platform twitter
+# Run crawler service (twitter target)
+python crawler_service.py --platform twitter --keywords sports athletic football basketball olympics --limit 120 --output-dir ../data/crawled/twitter
+
+# Compatibility wrapper entrypoint
+python crawler_worker.py --platform twitter --limit 120 --output-dir ../data/crawled/twitter
 ```
 
 ## 📋 Documentation
@@ -196,6 +199,8 @@ python crawler_worker.py --platform twitter
 - **[backend/docs/reports/day2-asset-endpoint-manual-test.md](./backend/docs/reports/day2-asset-endpoint-manual-test.md)** - Manual Day 2 asset endpoint smoke report
 - **[backend/docs/detection-api-contract.md](./backend/docs/detection-api-contract.md)** - Detection endpoint request and response contract
 - **[backend/docs/reports/day3-detection-endpoint-manual-test.md](./backend/docs/reports/day3-detection-endpoint-manual-test.md)** - Manual Day 3 detection endpoint smoke report
+- **[backend/docs/crawler-service.md](./backend/docs/crawler-service.md)** - Crawler architecture, runtime controls, and output schema
+- **[backend/docs/reports/day3-crawler-manual-test.md](./backend/docs/reports/day3-crawler-manual-test.md)** - Manual Day 3 crawler execution and integration report
 - **[backend/postman/day2-asset-api.postman_collection.json](./backend/postman/day2-asset-api.postman_collection.json)** - Postman collection for Day 2 asset APIs
 - **[.github/AGENTS.md](./.github/AGENTS.md)** - Workspace-level agent routing and guardrails
 - **[.github/agents/](./.github/agents/)** - Executable domain agents (`*.agent.md`)

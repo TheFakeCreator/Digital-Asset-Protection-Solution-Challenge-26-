@@ -31,6 +31,8 @@ Behavior:
 - Enqueues a background detection job
 - Job compares reference asset against candidate images using `python/detection_service.py`
 - Similarity score is 0-100; matches are flagged when score >= `DETECTION_SIMILARITY_THRESHOLD` (default 85)
+- Candidate pool is sourced from crawler manifest (`backend/data/crawled/twitter/latest.json`) when available
+- At most 5 top-confidence matches are persisted per search job
 
 Example response (202):
 
