@@ -40,6 +40,10 @@ wheels/
 .installed.cfg
 *.egg
 
+# Keep frontend utility modules tracked
+!frontend/lib/
+!frontend/lib/**
+
 # IDE
 .vscode/
 .idea/

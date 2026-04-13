@@ -39,17 +39,17 @@
 - [x] Scaffold Express server structure with basic middleware
 
 **Person 2: Fingerprinting POC**
-- [ ] Set up Python virtual environment: `python -m venv venv`
-- [ ] Install packages: `pip install pillow imagehash opencv-python requests`
+- [x] Set up Python virtual environment: `python -m venv venv`
+- [x] Install packages: `pip install pillow imagehash opencv-python requests`
 - [x] Create `backend/python/fingerprint_service.py` 
 - [x] Write basic image fingerprinting (generate hash for 1 image)
-- [ ] Test consistency (same image = same hash)
-- [ ] Create Python bridge for Node.js to call (via child_process)
+- [x] Test consistency (same image = same hash)
+- [x] Create Python bridge for Node.js to call (via child_process)
 
 **Person 3: Project Setup**
 - [x] Create GitHub repo structure
-- [ ] Initialize docker-compose.yml for MongoDB + Redis
-- [ ] Create Dockerfile for Node.js backend
+- [x] Initialize docker-compose.yml for MongoDB + Redis
+- [x] Create Dockerfile for Node.js backend
 - [x] Create Next.js project: `pnpm create next-app@latest frontend --typescript --tailwind --app`
 - [x] **Important:** Verify Tailwind CSS is already working (NOT installed separately)
 
@@ -57,9 +57,9 @@
 - [x] Next.js project created with automatic routing
 - [x] Set up `app/layout.js` (main layout with Tailwind)
 - [x] Create initial pages: `app/page.js`, `app/upload/page.js`, `app/detections/page.js`
-- [ ] Set up API client (fetch or axios via pnpm)
-- [ ] Create basic navigation component with Tailwind styling
-- [ ] Verify hot reload and Tailwind CSS theming
+- [x] Set up API client (fetch or axios via pnpm)
+- [x] Create basic navigation component with Tailwind styling
+- [x] Verify hot reload and Tailwind CSS theming
 
 #### End of Day Deliverables
 - ✅ GitHub repo structure complete
