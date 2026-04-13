@@ -1,11 +1,13 @@
 const express = require("express");
+const fs = require("fs/promises");
 const mongoose = require("mongoose");
 const path = require("path");
 const { z } = require("zod");
 
-const { Asset } = require("../models");
+const { Asset, Fingerprint } = require("../models");
 const { AppError } = require("../errors/app-error");
 const { uploadMedia } = require("../middleware/upload-media");
+const { generateFingerprint } = require("../services/fingerprint.bridge");
 
 const createAssetSchema = z.object({
   name: z.string().trim().min(1).max(120),
@@ -53,6 +55,14 @@ function toPublicUploadUrl(file) {
   return `/uploads/${file.filename}`;
 }
 
+async function safeUnlink(filePath) {
+  try {
+    await fs.unlink(filePath);
+  } catch (_error) {
+    // Best-effort cleanup only.
+  }
+}
+
 router.post("/", ensureDatabaseConnected, uploadMedia.single("media"), async (req, res, next) => {
   try {
     const payload = parseOrThrow(createAssetSchema, req.body);
@@ -66,8 +76,11 @@ router.post("/", ensureDatabaseConnected, uploadMedia.single("media"), async (re
       .split(path.sep)
       .join("/");
 
+    const fingerprint = await generateFingerprint(req.file.path);
+
     const asset = await Asset.create({
       ...payload,
+      fingerprintHash: fingerprint.hash,
       originalFileName: req.file.originalname,
       mimeType: req.file.mimetype,
       sizeBytes: req.file.size,
@@ -75,11 +88,33 @@ router.post("/", ensureDatabaseConnected, uploadMedia.single("media"), async (re
       fileUrl: toPublicUploadUrl(req.file)
     });
 
+    try {
+      await Fingerprint.create({
+        assetId: asset._id,
+        hashValue: fingerprint.hash,
+        algorithm: fingerprint.algorithm
+      });
+    } catch (error) {
+      await Asset.findByIdAndDelete(asset._id);
+      await safeUnlink(req.file.path);
+      throw new AppError(
+        `Failed to persist fingerprint metadata: ${error.message}`,
+        500,
+        "FINGERPRINT_PERSISTENCE_ERROR"
+      );
+    }
+
     res.status(201).json({
       success: true,
-      data: asset
+      data: {
+        asset,
+        fingerprint
+      }
     });
   } catch (error) {
+    if (req.file && error.code !== "FINGERPRINT_PERSISTENCE_ERROR") {
+      await safeUnlink(req.file.path);
+    }
     next(error);
   }
 });
