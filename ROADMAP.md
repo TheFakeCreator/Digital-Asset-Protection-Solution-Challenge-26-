@@ -91,8 +91,8 @@
 - [x] Integrate fingerprint_service into asset upload pipeline
 - [x] When asset uploaded → automatically generate fingerprint
 - [x] Store fingerprint in DB
-- [ ] Implement batch fingerprinting for multiple files
-- [ ] Create unit tests for fingerprinting accuracy
+- [x] Implement batch fingerprinting for multiple files
+- [x] Create unit tests for fingerprinting accuracy
 
 **Person 3: API Documentation & Testing**
 - [ ] Set up Postman/Insomnia collections for all endpoints

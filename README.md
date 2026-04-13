@@ -134,6 +134,7 @@ pnpm run build
 **Key Endpoints:**
 - `POST /api/v1/assets` - Upload sports media
 - `GET /api/v1/assets` - List registered assets
+- `POST /api/v1/assets/fingerprints/batch` - Recompute fingerprints for multiple assets
 - `POST /api/v1/detections/search/{assetId}` - Trigger detection
 - `GET /api/v1/detections` - Get detection results
 
@@ -170,6 +171,9 @@ source .venv/bin/activate    # On Windows: .venv\Scripts\activate
 
 # Generate fingerprint for image
 python fingerprint_service.py path/to/image.jpg
+
+# Generate fingerprints for multiple images
+python batch_fingerprint_service.py path/to/image1.jpg path/to/image2.jpg
 
 # Run crawler
 python crawler_worker.py --platform twitter
@@ -241,8 +245,8 @@ pnpm run test
 
 # Python tests
 cd backend/python
-source venv/bin/activate
-pytest
+source .venv/bin/activate
+python -m unittest -v test_fingerprint_accuracy.py
 ```
 
 ## 🐳 Docker & Deployment
