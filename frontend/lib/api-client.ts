@@ -44,6 +44,47 @@ export type AssetListResponse = {
   total: number;
 };
 
+export type DetectionAssetSummary = {
+  _id: string;
+  name: string;
+  creator?: string;
+  eventDate?: string;
+};
+
+export type Detection = {
+  _id: string;
+  assetId: string | DetectionAssetSummary;
+  platform: string;
+  url: string;
+  confidence: number;
+  status: "pending" | "confirmed" | "dismissed";
+  dateFound: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type DetectionListResponse = {
+  items: Detection[];
+  page: number;
+  limit: number;
+  total: number;
+};
+
+export type DetectionSearchJob = {
+  id: string;
+  assetId: string;
+  status: "queued" | "running" | "completed" | "failed";
+  createdAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  createdDetections: number;
+  error: string;
+};
+
+export type DetectionSearchResponse = {
+  job: DetectionSearchJob;
+};
+
 export type UploadAssetInput = {
   name: string;
   creator: string;
@@ -106,6 +147,27 @@ export function fetchHealth() {
 
 export function fetchAssets(page = 1, limit = 5) {
   return requestApi<AssetListResponse>(`/api/v1/assets?page=${page}&limit=${limit}`);
+}
+
+export function fetchDetections(assetId?: string, page = 1, limit = 20) {
+  const params = new URLSearchParams();
+  params.set("page", String(page));
+  params.set("limit", String(limit));
+  if (assetId) {
+    params.set("asset_id", assetId);
+  }
+
+  return requestApi<DetectionListResponse>(`/api/v1/detections?${params.toString()}`);
+}
+
+export function triggerDetectionSearch(assetId: string) {
+  return requestApi<DetectionSearchResponse>(`/api/v1/detections/search/${assetId}`, {
+    method: "POST"
+  });
+}
+
+export function fetchDetectionJob(jobId: string) {
+  return requestApi<DetectionSearchJob>(`/api/v1/detections/jobs/${jobId}`);
 }
 
 export function createAsset(input: UploadAssetInput) {
