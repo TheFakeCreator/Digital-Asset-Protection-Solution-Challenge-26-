@@ -196,6 +196,7 @@ export default function HashLabPage() {
   const [appliedEdits, setAppliedEdits] = useState<string[]>([]);
   const [settings, setSettings] = useState<EditSettings>(DEFAULT_SETTINGS);
   const [threshold, setThreshold] = useState(85);
+  const [watermarkKey, setWatermarkKey] = useState("hash-lab-demo-key");
   const [isBuildingCandidate, setIsBuildingCandidate] = useState(false);
   const [isComparing, setIsComparing] = useState(false);
   const [compareResult, setCompareResult] = useState<DetectionPreviewCompareResponse | null>(null);
@@ -290,7 +291,12 @@ export default function HashLabPage() {
     setNotice(null);
 
     try {
-      const response = await previewDetectionCompare(referenceFile, candidateFile, threshold);
+      const response = await previewDetectionCompare(
+        referenceFile,
+        candidateFile,
+        threshold,
+        watermarkKey.trim() || "hash-lab-demo-key"
+      );
       setCompareResult(response);
 
       const result = response.comparison.result;
@@ -321,6 +327,9 @@ export default function HashLabPage() {
 
   const similarityScore = compareResult?.comparison.result?.similarity_score || 0;
   const isMatch = Boolean(compareResult?.comparison.result?.is_match);
+  const watermarkConfidence = compareResult?.watermarkComparison?.confidence || 0;
+  const watermarkBer = compareResult?.watermarkComparison?.crossMediaBitErrorRate || 1;
+  const watermarkLooksRecovered = watermarkConfidence >= 0.5 && watermarkBer <= 0.25;
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-6 py-12 sm:px-10">
@@ -481,6 +490,16 @@ export default function HashLabPage() {
               />
             </label>
 
+            <label className="space-y-1 sm:col-span-2">
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Watermark Key</span>
+              <input
+                type="text"
+                value={watermarkKey}
+                onChange={(event) => setWatermarkKey(event.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+              />
+            </label>
+
             <button
               type="button"
               onClick={handleResetEdits}
@@ -546,7 +565,7 @@ export default function HashLabPage() {
 
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-xl font-bold text-slate-900">Hash Tracking Result</h2>
+          <h2 className="text-xl font-bold text-slate-900">Comparison Results</h2>
           <span
             className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${
               isMatch ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
@@ -557,18 +576,71 @@ export default function HashLabPage() {
         </div>
 
         {compareResult ? (
-          <div className="mt-4 grid gap-5 lg:grid-cols-2">
+          <div className="mt-4 space-y-6">
+            <div className="grid gap-4 md:grid-cols-2">
+              <article className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Method A</p>
+                <p className="mt-1 text-lg font-bold text-slate-900">Perceptual Hash Match</p>
+                <p className="mt-2 text-sm text-slate-700">
+                  Score {similarityScore} / Threshold {compareResult.comparison.threshold}
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Algorithm: {compareResult.comparison.algorithm}
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Variant: {compareResult.comparison.result?.match_variant || "N/A"}
+                </p>
+                <span
+                  className={`mt-3 inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
+                    isMatch ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
+                  }`}
+                >
+                  {isMatch ? "Tracked" : "Below Threshold"}
+                </span>
+              </article>
+
+              <article className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Method B</p>
+                <p className="mt-1 text-lg font-bold text-slate-900">Watermark Recovery</p>
+                <p className="mt-2 text-sm text-slate-700">
+                  Confidence {watermarkConfidence.toFixed(3)}
+                </p>
+                <p className="mt-1 text-sm text-slate-700">
+                  Cross-media BER {watermarkBer.toFixed(4)}
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Frames used: {compareResult.watermarkComparison.framesUsed}
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  ECC: {compareResult.watermarkComparison.eccScheme} ({compareResult.watermarkComparison.encodedBitLength} bits)
+                </p>
+                <span
+                  className={`mt-3 inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
+                    watermarkLooksRecovered ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
+                  }`}
+                >
+                  {watermarkLooksRecovered ? "Recovered" : "Weak Recovery"}
+                </span>
+              </article>
+            </div>
+
+            <div className="grid gap-5 lg:grid-cols-2">
             <article className="rounded-xl border border-slate-200 bg-slate-50 p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Reference Fingerprint</p>
               <p className="mt-2 font-mono text-sm text-slate-800">{truncateHash(compareResult.reference.hash)}</p>
               <p className="mt-1 text-xs text-slate-500">{compareResult.reference.algorithm}</p>
+              <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Watermark Reference</p>
+              <p className="mt-1 font-mono text-xs text-slate-700">{truncateHash(compareResult.watermarkComparison.referenceFingerprint)}</p>
             </article>
 
             <article className="rounded-xl border border-slate-200 bg-slate-50 p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Candidate Fingerprint</p>
               <p className="mt-2 font-mono text-sm text-slate-800">{truncateHash(compareResult.candidate.hash)}</p>
               <p className="mt-1 text-xs text-slate-500">{compareResult.candidate.algorithm}</p>
+              <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Recovered Watermark</p>
+              <p className="mt-1 font-mono text-xs text-slate-700">{truncateHash(compareResult.watermarkComparison.recoveredFingerprint)}</p>
             </article>
+            </div>
 
             <article className="rounded-xl border border-slate-200 bg-slate-50 p-4 lg:col-span-2">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Similarity Score</p>
@@ -586,6 +658,9 @@ export default function HashLabPage() {
               </p>
               <p className="mt-1 text-xs text-slate-500">
                 Reference variants tested: {compareResult.comparison.referenceVariants.join(", ") || "N/A"}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                Watermark key used: {compareResult.watermarkComparison.key}
               </p>
             </article>
           </div>

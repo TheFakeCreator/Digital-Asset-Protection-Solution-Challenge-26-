@@ -29,6 +29,8 @@ module.exports = {
     process.env.PYTHON_FINGERPRINT_SCRIPT || "python/fingerprint_service.py",
   pythonDetectionScript:
     process.env.PYTHON_DETECTION_SCRIPT || "python/detection_service.py",
+  pythonWatermarkScript:
+    process.env.PYTHON_WATERMARK_SCRIPT || "python/robust_watermark.py",
   pythonBridgeTimeoutMs: Number(process.env.PYTHON_BRIDGE_TIMEOUT_MS || 30000),
   detectionSimilarityThreshold: Number(process.env.DETECTION_SIMILARITY_THRESHOLD || 85),
   detectionCacheTtlSeconds: Number(process.env.DETECTION_CACHE_TTL_SECONDS || 900),

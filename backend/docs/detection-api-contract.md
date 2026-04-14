@@ -223,11 +223,13 @@ Fields:
 - reference: image file (required)
 - candidate: image file (required)
 - threshold: integer 0-100 (optional, default 85)
+- watermarkKey: string (optional, default `hash-lab-demo-key`)
 
 Behavior:
 - Runs immediate in-request comparison between two uploaded images.
 - Returns registration-style hashes (`phash`) for both files.
 - Returns detection matcher score and match decision using the crop-aware multi-hash matcher.
+- Runs watermark generation on the reference plus watermark recovery on the candidate and returns side-by-side metrics.
 - Uploaded preview files are cleaned up after processing.
 
 Example response (200):
@@ -257,6 +259,17 @@ Example response (200):
         "similarity_score": 89,
         "match_variant": "full:center"
       }
+    },
+    "watermarkComparison": {
+      "key": "hash-lab-demo-key",
+      "referenceFingerprint": "3a89822e1e6e43c8c37fa9861f3ef5a0260b3c0658d1f88fc247c0974c0f5edc",
+      "recoveredFingerprint": "abdf86cebc7acff0edf7ecfda4d69ced8fe7bdbbe1ff8fc37b98ade8ade6ddff",
+      "confidence": 0.246,
+      "bitErrorRate": 0.3633,
+      "crossMediaBitErrorRate": 0.4844,
+      "framesUsed": 1,
+      "eccScheme": "reed-solomon",
+      "encodedBitLength": 512
     }
   }
 }

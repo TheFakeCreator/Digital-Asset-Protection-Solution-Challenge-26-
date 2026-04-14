@@ -9,6 +9,10 @@ const { uploadMedia } = require("../middleware/upload-media");
 const { compareImageBatch } = require("../services/detection.bridge");
 const { generateFingerprint } = require("../services/fingerprint.bridge");
 const {
+  generateWatermarkFingerprint,
+  detectWatermarkFingerprint
+} = require("../services/watermark.bridge");
+const {
   enqueueDetectionSearch,
   enqueueBatchDetectionSearch,
   getDetectionSearchJob
@@ -27,8 +31,50 @@ const batchDetectionSearchBodySchema = z.object({
 });
 
 const previewCompareBodySchema = z.object({
-  threshold: z.coerce.number().int().min(0).max(100).default(85)
+  threshold: z.coerce.number().int().min(0).max(100).default(85),
+  watermarkKey: z.string().trim().min(1).max(128).default("hash-lab-demo-key")
 });
+
+function normalizeHexFingerprint(value) {
+  if (!value || typeof value !== "string") {
+    return "";
+  }
+
+  return value.replace(/[^a-f0-9]/gi, "").toLowerCase();
+}
+
+function hexToBits(value) {
+  const normalized = normalizeHexFingerprint(value);
+  if (!normalized) {
+    return [];
+  }
+
+  return normalized
+    .split("")
+    .map((char) => Number.parseInt(char, 16).toString(2).padStart(4, "0"))
+    .join("")
+    .split("")
+    .map((bit) => Number.parseInt(bit, 10));
+}
+
+function computeBitErrorRate(referenceHex, candidateHex) {
+  const referenceBits = hexToBits(referenceHex);
+  const candidateBits = hexToBits(candidateHex);
+
+  const compared = Math.min(referenceBits.length, candidateBits.length);
+  if (compared === 0) {
+    return 1;
+  }
+
+  let mismatchCount = 0;
+  for (let index = 0; index < compared; index += 1) {
+    if (referenceBits[index] !== candidateBits[index]) {
+      mismatchCount += 1;
+    }
+  }
+
+  return mismatchCount / compared;
+}
 
 function parseOrThrow(schema, payload) {
   const parsed = schema.safeParse(payload);
@@ -85,15 +131,28 @@ router.post(
 
       uploadedPaths = [referenceFile.path, candidateFile.path].filter(Boolean);
 
-      const { threshold } = parseOrThrow(previewCompareBodySchema, req.body);
+      const { threshold, watermarkKey } = parseOrThrow(previewCompareBodySchema, req.body);
 
-      const [referenceFingerprint, candidateFingerprint, comparison] = await Promise.all([
+      const [
+        referenceFingerprint,
+        candidateFingerprint,
+        comparison,
+        watermarkReference,
+        watermarkRecovered
+      ] = await Promise.all([
         generateFingerprint(referenceFile.path),
         generateFingerprint(candidateFile.path),
-        compareImageBatch(referenceFile.path, [candidateFile.path], threshold)
+        compareImageBatch(referenceFile.path, [candidateFile.path], threshold),
+        generateWatermarkFingerprint(referenceFile.path),
+        detectWatermarkFingerprint(candidateFile.path, watermarkKey)
       ]);
 
       const firstResult = Array.isArray(comparison.results) ? comparison.results[0] : null;
+
+      const watermarkCrossBitErrorRate = computeBitErrorRate(
+        watermarkReference.fingerprintHex,
+        watermarkRecovered.fingerprintHex
+      );
 
       res.status(200).json({
         success: true,
@@ -113,6 +172,17 @@ router.post(
             threshold: comparison.threshold,
             referenceVariants: comparison.reference?.variants || [],
             result: firstResult
+          },
+          watermarkComparison: {
+            key: watermarkKey,
+            referenceFingerprint: watermarkReference.fingerprintHex,
+            recoveredFingerprint: watermarkRecovered.fingerprintHex,
+            confidence: watermarkRecovered.confidence,
+            bitErrorRate: watermarkRecovered.bitErrorRate,
+            crossMediaBitErrorRate: Number(watermarkCrossBitErrorRate.toFixed(4)),
+            framesUsed: watermarkRecovered.framesUsed,
+            eccScheme: watermarkReference.eccScheme,
+            encodedBitLength: watermarkReference.encodedBitLength
           }
         }
       });

@@ -217,6 +217,7 @@
 - Threshold sweep completed; operating threshold remains 85.
 - Detections dashboard now includes timeline and triage-ready reporting controls.
 - Hash Lab page now provides interactive edited-image tracking checks through a dedicated preview compare API.
+- Hash Lab now compares two methods side-by-side: perceptual hash matching vs robust watermark recovery.
 
 **Acceptance Criteria:** Can detect same sports image on 3+ different platforms (in progress)
 

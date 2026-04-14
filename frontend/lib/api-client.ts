@@ -140,6 +140,17 @@ export type DetectionPreviewCompareResponse = {
     referenceVariants: string[];
     result: DetectionPreviewCompareResult | null;
   };
+  watermarkComparison: {
+    key: string;
+    referenceFingerprint: string;
+    recoveredFingerprint: string;
+    confidence: number;
+    bitErrorRate: number;
+    crossMediaBitErrorRate: number;
+    framesUsed: number;
+    eccScheme: string;
+    encodedBitLength: number;
+  };
 };
 
 export type UploadAssetInput = {
@@ -237,11 +248,17 @@ export function fetchDetectionJob(jobId: string) {
   return requestApi<DetectionSearchJob>(`/api/v1/detections/jobs/${jobId}`);
 }
 
-export function previewDetectionCompare(referenceFile: File, candidateFile: File, threshold = 85) {
+export function previewDetectionCompare(
+  referenceFile: File,
+  candidateFile: File,
+  threshold = 85,
+  watermarkKey = "hash-lab-demo-key"
+) {
   const formData = new FormData();
   formData.append("reference", referenceFile);
   formData.append("candidate", candidateFile);
   formData.append("threshold", String(threshold));
+  formData.append("watermarkKey", watermarkKey);
 
   return requestApi<DetectionPreviewCompareResponse>("/api/v1/detections/preview-compare", {
     method: "POST",
