@@ -890,7 +890,13 @@ export default function HashLabPage() {
               edits.add(edit);
             }
 
-            const response = await previewDetectionCompare(referenceFile, builtCandidate.file, threshold, key);
+            const response = await previewDetectionCompare(
+              referenceFile,
+              builtCandidate.file,
+              threshold,
+              key,
+              { includeWatermark: false }
+            );
             const result = response.comparison.result;
 
             if (!result || result.status !== "ok") {
@@ -911,11 +917,17 @@ export default function HashLabPage() {
             methods.push(result.match_method || "unknown");
             matchValues.push(Boolean(result.is_match));
 
-            if (typeof response.watermarkComparison?.confidence === "number") {
+            if (
+              response.watermarkComparison.status === "ok" &&
+              typeof response.watermarkComparison.confidence === "number"
+            ) {
               watermarkConfidenceValues.push(response.watermarkComparison.confidence);
             }
 
-            if (typeof response.watermarkComparison?.crossMediaBitErrorRate === "number") {
+            if (
+              response.watermarkComparison.status === "ok" &&
+              typeof response.watermarkComparison.crossMediaBitErrorRate === "number"
+            ) {
               watermarkBerValues.push(response.watermarkComparison.crossMediaBitErrorRate);
             }
           } catch (error) {
@@ -993,9 +1005,13 @@ export default function HashLabPage() {
 
   const similarityScore = compareResult?.comparison.result?.similarity_score || 0;
   const isMatch = Boolean(compareResult?.comparison.result?.is_match);
-  const watermarkConfidence = compareResult?.watermarkComparison?.confidence || 0;
-  const watermarkBer = compareResult?.watermarkComparison?.crossMediaBitErrorRate || 1;
-  const watermarkLooksRecovered = watermarkConfidence >= 0.5 && watermarkBer <= 0.25;
+  const watermarkDetails =
+    compareResult?.watermarkComparison.status === "ok" ? compareResult.watermarkComparison : null;
+  const watermarkRecoveryAvailable = Boolean(watermarkDetails);
+  const watermarkConfidence = watermarkDetails?.confidence ?? 0;
+  const watermarkBer = watermarkDetails?.crossMediaBitErrorRate ?? 1;
+  const watermarkLooksRecovered =
+    watermarkRecoveryAvailable && watermarkConfidence >= 0.5 && watermarkBer <= 0.25;
   const noiseSignals = useMemo(() => getNoiseSignals(settings), [settings]);
   const activeNoiseSignals = useMemo(
     () => noiseSignals.filter((signal) => signal.intensity > 0),
@@ -1882,24 +1898,49 @@ export default function HashLabPage() {
               <article className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Method B</p>
                 <p className="mt-1 text-lg font-bold text-slate-900">Watermark Recovery</p>
-                <p className="mt-2 text-sm text-slate-700">
-                  Confidence {watermarkConfidence.toFixed(3)}
-                </p>
-                <p className="mt-1 text-sm text-slate-700">
-                  Cross-media BER {watermarkBer.toFixed(4)}
-                </p>
-                <p className="mt-1 text-xs text-slate-500">
-                  Frames used: {compareResult.watermarkComparison.framesUsed}
-                </p>
-                <p className="mt-1 text-xs text-slate-500">
-                  ECC: {compareResult.watermarkComparison.eccScheme} ({compareResult.watermarkComparison.encodedBitLength} bits)
-                </p>
+                {watermarkRecoveryAvailable ? (
+                  <>
+                    <p className="mt-2 text-sm text-slate-700">
+                      Confidence {watermarkConfidence.toFixed(3)}
+                    </p>
+                    <p className="mt-1 text-sm text-slate-700">
+                      Cross-media BER {watermarkBer.toFixed(4)}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Frames used: {watermarkDetails?.framesUsed ?? 0}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      ECC: {watermarkDetails?.eccScheme ?? "N/A"} ({watermarkDetails?.encodedBitLength ?? 0} bits)
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="mt-2 text-sm text-slate-700">
+                      Watermark processing unavailable for this deployment.
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {compareResult.watermarkComparison.status === "error"
+                        ? compareResult.watermarkComparison.error.message
+                        : compareResult.watermarkComparison.status === "skipped"
+                          ? compareResult.watermarkComparison.reason
+                          : "Watermark comparison unavailable."}
+                    </p>
+                  </>
+                )}
                 <span
                   className={`mt-3 inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
-                    watermarkLooksRecovered ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
+                    watermarkRecoveryAvailable
+                      ? watermarkLooksRecovered
+                        ? "bg-emerald-100 text-emerald-700"
+                        : "bg-amber-100 text-amber-700"
+                      : "bg-slate-200 text-slate-700"
                   }`}
                 >
-                  {watermarkLooksRecovered ? "Recovered" : "Weak Recovery"}
+                  {watermarkRecoveryAvailable
+                    ? watermarkLooksRecovered
+                      ? "Recovered"
+                      : "Weak Recovery"
+                    : "Unavailable"}
                 </span>
               </article>
             </div>
@@ -1910,7 +1951,11 @@ export default function HashLabPage() {
               <p className="mt-2 font-mono text-sm text-slate-800">{truncateHash(compareResult.reference.hash)}</p>
               <p className="mt-1 text-xs text-slate-500">{compareResult.reference.algorithm}</p>
               <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Watermark Reference</p>
-              <p className="mt-1 font-mono text-xs text-slate-700">{truncateHash(compareResult.watermarkComparison.referenceFingerprint)}</p>
+              <p className="mt-1 font-mono text-xs text-slate-700">
+                {watermarkRecoveryAvailable
+                  ? truncateHash(watermarkDetails?.referenceFingerprint || "")
+                  : "Unavailable"}
+              </p>
             </article>
 
             <article className="rounded-xl border border-slate-200 bg-slate-50 p-4">
@@ -1918,7 +1963,11 @@ export default function HashLabPage() {
               <p className="mt-2 font-mono text-sm text-slate-800">{truncateHash(compareResult.candidate.hash)}</p>
               <p className="mt-1 text-xs text-slate-500">{compareResult.candidate.algorithm}</p>
               <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Recovered Watermark</p>
-              <p className="mt-1 font-mono text-xs text-slate-700">{truncateHash(compareResult.watermarkComparison.recoveredFingerprint)}</p>
+              <p className="mt-1 font-mono text-xs text-slate-700">
+                {watermarkRecoveryAvailable
+                  ? truncateHash(watermarkDetails?.recoveredFingerprint || "")
+                  : "Unavailable"}
+              </p>
             </article>
             </div>
 

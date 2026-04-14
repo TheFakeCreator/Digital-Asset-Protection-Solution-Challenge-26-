@@ -224,12 +224,15 @@ Fields:
 - candidate: image file (required)
 - threshold: integer 0-100 (optional, default 85)
 - watermarkKey: string (optional, default `hash-lab-demo-key`)
+- includeWatermark: boolean-like string (optional, default `true`)
 
 Behavior:
 - Runs immediate in-request comparison between two uploaded images.
 - Returns registration-style hashes (`phash`) for both files.
 - Returns detection matcher score and match decision using the crop-aware multi-hash matcher.
-- Runs watermark generation on the reference plus watermark recovery on the candidate and returns side-by-side metrics.
+- When `includeWatermark=true`, attempts watermark generation on the reference plus watermark recovery on the candidate.
+- If watermark processing is unavailable, the endpoint still returns `200` with `watermarkComparison.status=error` and detection results intact.
+- When `includeWatermark=false`, watermark processing is skipped and `watermarkComparison.status=skipped` is returned.
 - Uploaded preview files are cleaned up after processing.
 
 Example response (200):
@@ -267,6 +270,7 @@ Example response (200):
       }
     },
     "watermarkComparison": {
+      "status": "ok",
       "key": "hash-lab-demo-key",
       "referenceFingerprint": "3a89822e1e6e43c8c37fa9861f3ef5a0260b3c0658d1f88fc247c0974c0f5edc",
       "recoveredFingerprint": "abdf86cebc7acff0edf7ecfda4d69ced8fe7bdbbe1ff8fc37b98ade8ade6ddff",
@@ -278,6 +282,23 @@ Example response (200):
       "encodedBitLength": 512
     }
   }
+}
+
+Watermark fallback payloads:
+
+{
+  "status": "error",
+  "key": "hash-lab-demo-key",
+  "error": {
+    "code": "WATERMARK_PROCESS_ERROR",
+    "message": "Watermark comparison unavailable in current deployment."
+  }
+}
+
+{
+  "status": "skipped",
+  "key": "hash-lab-demo-key",
+  "reason": "Watermark comparison disabled for this request."
 }
 
 ## Common Error Codes
