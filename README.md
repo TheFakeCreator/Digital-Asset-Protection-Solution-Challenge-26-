@@ -167,7 +167,7 @@ pnpm run lint
 - `/` - Dashboard (asset overview)
 - `/upload` - Upload new sports media
 - `/detections` - Trigger detection runs and filter confidence-scored results
-- `/hash-lab` - Visual side-by-side lab for edited image comparison with progressive hard-stress presets, effectiveness-vs-hardness graph, and explainability panel (perceptual hash vs robust watermark recovery)
+- `/hash-lab` - Visual side-by-side lab for edited image comparison with progressive hard-stress presets, multi-run mean/min/max graph bands, hardness-bin pass rates, threshold sweep overlays, and explainability panel (perceptual hash vs robust watermark recovery)
 
 ### Python Fingerprinting
 

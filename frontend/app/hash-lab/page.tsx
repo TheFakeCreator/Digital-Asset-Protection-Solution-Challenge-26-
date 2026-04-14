@@ -44,12 +44,25 @@ type BenchmarkResult = {
   label: string;
   hardness: number;
   edits: string[];
+  runCount: number;
+  matchRate: number;
   finalScore: number | null;
+  finalMin: number | null;
+  finalMax: number | null;
   hashScore: number | null;
+  hashMin: number | null;
+  hashMax: number | null;
   geometricScore: number | null;
+  geometricMin: number | null;
+  geometricMax: number | null;
+  geometricStatus: string;
   method: string;
   watermarkConfidence: number | null;
+  watermarkConfidenceMin: number | null;
+  watermarkConfidenceMax: number | null;
   watermarkBer: number | null;
+  watermarkBerMin: number | null;
+  watermarkBerMax: number | null;
   isMatch: boolean | null;
   error?: string;
 };
@@ -205,6 +218,15 @@ const HASH_EXPLANATION_WEIGHTS = [
   { id: "ahash", label: "aHash", weightPercent: 15, description: "Average luminance pattern" }
 ] as const;
 
+const THRESHOLD_SWEEP = [75, 80, 85, 90] as const;
+const HARDNESS_BINS = [
+  { label: "0-20", min: 0, max: 20 },
+  { label: "21-40", min: 21, max: 40 },
+  { label: "41-60", min: 41, max: 60 },
+  { label: "61-80", min: 61, max: 80 },
+  { label: "81-100", min: 81, max: 100 }
+] as const;
+
 function getNoiseSignals(settings: EditSettings): NoiseSignal[] {
   const textEnabled = settings.addTextOverlay && Boolean(settings.overlayText.trim());
 
@@ -356,14 +378,108 @@ function formatMetric(value: number | null | undefined, precision = 0) {
   return value.toFixed(precision);
 }
 
-function buildLinePath(points: Array<{ x: number; y: number }>) {
+function buildLinePath(points: Array<{ x: number; y: number } | null>) {
   if (points.length === 0) {
     return "";
   }
 
-  return points
+  const chunks: string[] = [];
+  let hasOpenSegment = false;
+
+  for (const point of points) {
+    if (!point) {
+      hasOpenSegment = false;
+      continue;
+    }
+
+    chunks.push(`${hasOpenSegment ? "L" : "M"} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`);
+    hasOpenSegment = true;
+  }
+
+  return chunks.join(" ");
+}
+
+function buildBandPath(upper: Array<{ x: number; y: number }>, lower: Array<{ x: number; y: number }>) {
+  if (upper.length === 0 || lower.length === 0 || upper.length !== lower.length) {
+    return "";
+  }
+
+  const top = upper
     .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`)
     .join(" ");
+
+  const bottom = [...lower]
+    .reverse()
+    .map((point) => `L ${point.x.toFixed(2)} ${point.y.toFixed(2)}`)
+    .join(" ");
+
+  return `${top} ${bottom} Z`;
+}
+
+function summarizeSeries(values: number[]) {
+  if (values.length === 0) {
+    return {
+      mean: null,
+      min: null,
+      max: null
+    };
+  }
+
+  const total = values.reduce((sum, value) => sum + value, 0);
+  return {
+    mean: total / values.length,
+    min: Math.min(...values),
+    max: Math.max(...values)
+  };
+}
+
+function dominantLabel(values: string[], fallback: string) {
+  if (values.length === 0) {
+    return fallback;
+  }
+
+  const frequency = new Map<string, number>();
+  for (const value of values) {
+    frequency.set(value, (frequency.get(value) || 0) + 1);
+  }
+
+  let selected = fallback;
+  let maxCount = -1;
+  for (const [label, count] of frequency.entries()) {
+    if (count > maxCount) {
+      selected = label;
+      maxCount = count;
+    }
+  }
+
+  return selected;
+}
+
+function jitterValue(seedBase: number, amplitude: number) {
+  const unit = Math.sin(seedBase * 12.9898 + 78.233) * 43758.5453;
+  const fraction = unit - Math.floor(unit);
+  return (fraction * 2 - 1) * amplitude;
+}
+
+function buildJitteredSettings(settings: EditSettings, runIndex: number) {
+  if (runIndex === 0) {
+    return { ...settings };
+  }
+
+  const seed = runIndex * 17.13;
+
+  return {
+    ...settings,
+    cropPercent: clamp(settings.cropPercent + jitterValue(seed + 1, 1.6), 0, EDIT_LIMITS.cropMax),
+    rotateDeg: clamp(settings.rotateDeg + jitterValue(seed + 2, 1.2), -EDIT_LIMITS.rotateMax, EDIT_LIMITS.rotateMax),
+    brightness: clamp(Math.round(settings.brightness + jitterValue(seed + 3, 3.0)), EDIT_LIMITS.brightnessMin, EDIT_LIMITS.brightnessMax),
+    contrast: clamp(Math.round(settings.contrast + jitterValue(seed + 4, 3.0)), EDIT_LIMITS.contrastMin, EDIT_LIMITS.contrastMax),
+    saturation: clamp(Math.round(settings.saturation + jitterValue(seed + 5, 3.0)), EDIT_LIMITS.saturationMin, EDIT_LIMITS.saturationMax),
+    blurPx: clamp(Number((settings.blurPx + jitterValue(seed + 6, 0.35)).toFixed(1)), 0, EDIT_LIMITS.blurMax),
+    noisePercent: clamp(Math.round(settings.noisePercent + jitterValue(seed + 7, 1.2)), 0, EDIT_LIMITS.noiseMax),
+    downscalePercent: clamp(Math.round(settings.downscalePercent + jitterValue(seed + 8, 2.0)), EDIT_LIMITS.downscaleMin, EDIT_LIMITS.downscaleMax),
+    jpegQuality: clamp(Math.round(settings.jpegQuality + jitterValue(seed + 9, 3.0)), EDIT_LIMITS.jpegQualityMin, EDIT_LIMITS.jpegQualityMax)
+  };
 }
 
 function loadImage(url: string) {
@@ -388,7 +504,7 @@ function toBlob(canvas: HTMLCanvasElement, mimeType = "image/png", quality?: num
   });
 }
 
-async function buildCandidateImage(sourceFile: File, settings: EditSettings): Promise<CandidateBuild> {
+async function buildCandidateImage(sourceFile: File, settings: EditSettings, runSalt = 0): Promise<CandidateBuild> {
   const sourceUrl = URL.createObjectURL(sourceFile);
   const appliedEdits: string[] = [];
 
@@ -533,7 +649,8 @@ async function buildCandidateImage(sourceFile: File, settings: EditSettings): Pr
         (width * 73856093) ^
         (height * 19349663) ^
         (Math.round(settings.noisePercent * 100) * 83492791) ^
-        (Math.round(settings.rotateDeg * 100) * 2654435761);
+        (Math.round(settings.rotateDeg * 100) * 2654435761) ^
+        (runSalt * 97531);
 
       const nextUnit = () => {
         seed = (seed * 1664525 + 1013904223) >>> 0;
@@ -608,6 +725,7 @@ export default function HashLabPage() {
   const [settings, setSettings] = useState<EditSettings>(DEFAULT_SETTINGS);
   const [threshold, setThreshold] = useState(85);
   const [watermarkKey, setWatermarkKey] = useState("hash-lab-demo-key");
+  const [benchmarkRepeats, setBenchmarkRepeats] = useState(3);
   const [isBuildingCandidate, setIsBuildingCandidate] = useState(false);
   const [isComparing, setIsComparing] = useState(false);
   const [isBenchmarking, setIsBenchmarking] = useState(false);
@@ -741,54 +859,116 @@ export default function HashLabPage() {
 
     setIsBenchmarking(true);
     setBenchmarkResults([]);
-    setNotice({ tone: "info", message: "Running preset benchmark cases..." });
+    setNotice({
+      tone: "info",
+      message: `Running preset benchmark cases (${benchmarkRepeats} runs per case)...`
+    });
 
     const key = watermarkKey.trim() || DEFAULT_WATERMARK_KEY;
     const collected: BenchmarkResult[] = [];
 
     try {
       for (const benchmarkCase of PRESET_BENCHMARK_CASES) {
-        let builtCandidate: CandidateBuild | null = null;
+        const edits = new Set<string>();
+        const finalValues: number[] = [];
+        const hashValues: number[] = [];
+        const geometricValues: number[] = [];
+        const geometricStatuses: string[] = [];
+        const methods: string[] = [];
+        const watermarkConfidenceValues: number[] = [];
+        const watermarkBerValues: number[] = [];
+        const matchValues: boolean[] = [];
+        const errors: string[] = [];
 
-        try {
-          builtCandidate = await buildCandidateImage(referenceFile, benchmarkCase.settings);
-          const response = await previewDetectionCompare(referenceFile, builtCandidate.file, threshold, key);
-          const result = response.comparison.result;
+        for (let runIndex = 0; runIndex < benchmarkRepeats; runIndex += 1) {
+          let builtCandidate: CandidateBuild | null = null;
 
-          collected.push({
-            id: benchmarkCase.id,
-            label: benchmarkCase.label,
-            hardness: benchmarkCase.hardness,
-            edits: builtCandidate.appliedEdits,
-            finalScore: result?.similarity_score ?? null,
-            hashScore: result?.hash_similarity_score ?? null,
-            geometricScore: result?.geometric_similarity_score ?? null,
-            method: result?.match_method || "unknown",
-            watermarkConfidence: response.watermarkComparison?.confidence ?? null,
-            watermarkBer: response.watermarkComparison?.crossMediaBitErrorRate ?? null,
-            isMatch: result?.is_match ?? false
-          });
-        } catch (error) {
-          const message = error instanceof Error ? error.message : "Benchmark case failed";
-          collected.push({
-            id: benchmarkCase.id,
-            label: benchmarkCase.label,
-            hardness: benchmarkCase.hardness,
-            edits: [],
-            finalScore: null,
-            hashScore: null,
-            geometricScore: null,
-            method: "error",
-            watermarkConfidence: null,
-            watermarkBer: null,
-            isMatch: null,
-            error: message
-          });
-        } finally {
-          if (builtCandidate?.previewUrl) {
-            URL.revokeObjectURL(builtCandidate.previewUrl);
+          try {
+            const runSettings = buildJitteredSettings(benchmarkCase.settings, runIndex);
+            builtCandidate = await buildCandidateImage(referenceFile, runSettings, runIndex + 1);
+            for (const edit of builtCandidate.appliedEdits) {
+              edits.add(edit);
+            }
+
+            const response = await previewDetectionCompare(referenceFile, builtCandidate.file, threshold, key);
+            const result = response.comparison.result;
+
+            if (!result || result.status !== "ok") {
+              throw new Error("Benchmark comparison did not return an ok result");
+            }
+
+            finalValues.push(result.similarity_score);
+            if (typeof result.hash_similarity_score === "number") {
+              hashValues.push(result.hash_similarity_score);
+            }
+
+            const geometricStatus = result.geometric_status || "unknown";
+            geometricStatuses.push(geometricStatus);
+            if (geometricStatus !== "skipped" && typeof result.geometric_similarity_score === "number") {
+              geometricValues.push(result.geometric_similarity_score);
+            }
+
+            methods.push(result.match_method || "unknown");
+            matchValues.push(Boolean(result.is_match));
+
+            if (typeof response.watermarkComparison?.confidence === "number") {
+              watermarkConfidenceValues.push(response.watermarkComparison.confidence);
+            }
+
+            if (typeof response.watermarkComparison?.crossMediaBitErrorRate === "number") {
+              watermarkBerValues.push(response.watermarkComparison.crossMediaBitErrorRate);
+            }
+          } catch (error) {
+            const message = error instanceof Error ? error.message : "Benchmark case failed";
+            errors.push(message);
+          } finally {
+            if (builtCandidate?.previewUrl) {
+              URL.revokeObjectURL(builtCandidate.previewUrl);
+            }
           }
         }
+
+        const finalSummary = summarizeSeries(finalValues);
+        const hashSummary = summarizeSeries(hashValues);
+        const geometricSummary = summarizeSeries(geometricValues);
+        const watermarkConfidenceSummary = summarizeSeries(watermarkConfidenceValues);
+        const watermarkBerSummary = summarizeSeries(watermarkBerValues);
+        const successfulRuns = finalValues.length;
+        const matchRate = successfulRuns > 0
+          ? matchValues.filter(Boolean).length / successfulRuns
+          : 0;
+        const dominantMethod = dominantLabel(methods, "unknown");
+        const dominantGeometricStatus = geometricSummary.mean === null && geometricStatuses.includes("skipped")
+          ? "skipped"
+          : dominantLabel(geometricStatuses, "unknown");
+
+        collected.push({
+          id: benchmarkCase.id,
+          label: benchmarkCase.label,
+          hardness: benchmarkCase.hardness,
+          edits: [...edits],
+          runCount: successfulRuns,
+          matchRate,
+          finalScore: finalSummary.mean,
+          finalMin: finalSummary.min,
+          finalMax: finalSummary.max,
+          hashScore: hashSummary.mean,
+          hashMin: hashSummary.min,
+          hashMax: hashSummary.max,
+          geometricScore: geometricSummary.mean,
+          geometricMin: geometricSummary.min,
+          geometricMax: geometricSummary.max,
+          geometricStatus: dominantGeometricStatus,
+          method: dominantMethod,
+          watermarkConfidence: watermarkConfidenceSummary.mean,
+          watermarkConfidenceMin: watermarkConfidenceSummary.min,
+          watermarkConfidenceMax: watermarkConfidenceSummary.max,
+          watermarkBer: watermarkBerSummary.mean,
+          watermarkBerMin: watermarkBerSummary.min,
+          watermarkBerMax: watermarkBerSummary.max,
+          isMatch: finalSummary.mean === null ? null : finalSummary.mean >= threshold,
+          error: errors.length > 0 ? `${errors.length}/${benchmarkRepeats} runs failed` : undefined
+        });
 
         setBenchmarkResults([...collected]);
       }
@@ -797,7 +977,7 @@ export default function HashLabPage() {
       const passRate = collected.length === 0 ? 0 : matchedCount / collected.length;
       setNotice({
         tone: passRate >= 0.55 ? "success" : "info",
-        message: `Preset benchmark completed: ${matchedCount}/${PRESET_BENCHMARK_CASES.length} cases matched at threshold ${threshold}.`
+        message: `Preset benchmark completed: ${matchedCount}/${PRESET_BENCHMARK_CASES.length} cases matched at threshold ${threshold} using ${benchmarkRepeats} runs per case.`
       });
     } finally {
       setIsBenchmarking(false);
@@ -863,23 +1043,92 @@ export default function HashLabPage() {
       y: yForScore(item.finalScore ?? 0)
     }));
 
-    const hashPoints = completed.map((item) => ({
+    const finalUpperPoints = completed.map((item) => ({
       x: xForHardness(item.hardness),
-      y: yForScore(item.hashScore ?? 0)
+      y: yForScore(item.finalMax ?? item.finalScore ?? 0)
     }));
 
-    const geometricPoints = completed.map((item) => ({
+    const finalLowerPoints = completed.map((item) => ({
       x: xForHardness(item.hardness),
-      y: yForScore(item.geometricScore ?? 0)
+      y: yForScore(item.finalMin ?? item.finalScore ?? 0)
     }));
 
-    const watermarkPoints = completed.map((item) => ({
-      x: xForHardness(item.hardness),
-      y: yForScore((item.watermarkConfidence ?? 0) * 100)
-    }));
+    const hashPoints = completed.map((item) =>
+      typeof item.hashScore === "number"
+        ? {
+            x: xForHardness(item.hardness),
+            y: yForScore(item.hashScore)
+          }
+        : null
+    );
+
+    const geometricPoints = completed.map((item) =>
+      item.geometricStatus === "skipped" || typeof item.geometricScore !== "number"
+        ? null
+        : {
+            x: xForHardness(item.hardness),
+            y: yForScore(item.geometricScore)
+          }
+    );
+
+    const watermarkPoints = completed.map((item) =>
+      typeof item.watermarkConfidence === "number"
+        ? {
+            x: xForHardness(item.hardness),
+            y: yForScore(item.watermarkConfidence * 100)
+          }
+        : null
+    );
 
     const avgFinal =
       completed.reduce((sum, item) => sum + (item.finalScore ?? 0), 0) / Math.max(1, completed.length);
+
+    const thresholdSweep = THRESHOLD_SWEEP.map((sweepValue) => {
+      const matchedCount = completed.filter((item) => (item.finalScore ?? 0) >= sweepValue).length;
+      const passRate = matchedCount / Math.max(1, completed.length);
+
+      return {
+        threshold: sweepValue,
+        y: yForScore(sweepValue),
+        matchedCount,
+        passRate
+      };
+    });
+
+    const hasCurrentThreshold = thresholdSweep.some((item) => item.threshold === threshold);
+    const thresholdOverlays = hasCurrentThreshold
+      ? thresholdSweep
+      : [
+          ...thresholdSweep,
+          {
+            threshold,
+            y: yForScore(threshold),
+            matchedCount: completed.filter((item) => (item.finalScore ?? 0) >= threshold).length,
+            passRate:
+              completed.filter((item) => (item.finalScore ?? 0) >= threshold).length /
+              Math.max(1, completed.length)
+          }
+        ].sort((left, right) => left.threshold - right.threshold);
+
+    const hardnessBins = HARDNESS_BINS.map((bin) => {
+      const binCases = completed.filter(
+        (item) => item.hardness >= bin.min && item.hardness <= bin.max
+      );
+
+      const matchedCount = binCases.filter((item) => (item.finalScore ?? 0) >= threshold).length;
+      const averageFinal =
+        binCases.length > 0
+          ? binCases.reduce((sum, item) => sum + (item.finalScore ?? 0), 0) / binCases.length
+          : null;
+
+      return {
+        ...bin,
+        total: binCases.length,
+        matchedCount,
+        passRate: binCases.length > 0 ? matchedCount / binCases.length : null,
+        averageFinal
+      };
+    });
 
     return {
       width,
@@ -889,16 +1138,21 @@ export default function HashLabPage() {
       maxHardness,
       thresholdY: yForScore(threshold),
       finalPoints,
+      finalUpperPoints,
+      finalLowerPoints,
       hashPoints,
       geometricPoints,
       watermarkPoints,
       finalPath: buildLinePath(finalPoints),
+      finalBandPath: buildBandPath(finalUpperPoints, finalLowerPoints),
       hashPath: buildLinePath(hashPoints),
       geometricPath: buildLinePath(geometricPoints),
       watermarkPath: buildLinePath(watermarkPoints),
       averageFinal: avgFinal,
-      matchedCount: completed.filter((item) => item.isMatch).length,
+      matchedCount: completed.filter((item) => (item.finalScore ?? 0) >= threshold).length,
       totalCount: completed.length,
+      thresholdOverlays,
+      hardnessBins,
       cases: completed
     };
   }, [benchmarkResults, threshold]);
@@ -1290,7 +1544,9 @@ export default function HashLabPage() {
                 <p className="font-semibold uppercase tracking-wide text-slate-500">Live Run Metrics</p>
                 <p className="mt-2">pHash bit distance: {phashDistance} bits</p>
                 <p className="mt-1">Hash score: {compareResult.comparison.result?.hash_similarity_score ?? "N/A"}</p>
-                <p className="mt-1">Geometric score: {compareResult.comparison.result?.geometric_similarity_score ?? "N/A"}</p>
+                <p className="mt-1">Geometric score: {compareResult.comparison.result?.geometric_status === "skipped"
+                  ? "Skipped"
+                  : compareResult.comparison.result?.geometric_similarity_score ?? "N/A"}</p>
                 <p className="mt-1">Geometric status: {compareResult.comparison.result?.geometric_status || "N/A"}</p>
                 <p className="mt-1">Good matches / inliers: {compareResult.comparison.result?.geometric_good_matches ?? "N/A"} / {compareResult.comparison.result?.geometric_inliers ?? "N/A"}</p>
                 <p className="mt-1">Decision: max({compareResult.comparison.result?.hash_similarity_score ?? 0}, {compareResult.comparison.result?.geometric_similarity_score ?? 0}) {">="} {compareResult.comparison.threshold}</p>
@@ -1310,14 +1566,30 @@ export default function HashLabPage() {
               Run a progressive benchmark ladder with increasingly harder edits and visualize detection effectiveness against hardness.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={handleRunPresetBenchmark}
-            disabled={!referenceFile || isBuildingCandidate || isComparing || isBenchmarking}
-            className="rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:border-slate-300 disabled:bg-slate-100 disabled:text-slate-500"
-          >
-            {isBenchmarking ? "Running Benchmark..." : "Run Preset Benchmark"}
-          </button>
+          <div className="flex items-end gap-2">
+            <label className="space-y-1">
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Repeats Per Case</span>
+              <select
+                value={benchmarkRepeats}
+                onChange={(event) => setBenchmarkRepeats(Number(event.target.value))}
+                disabled={isBenchmarking}
+                className="rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm text-slate-700"
+              >
+                <option value={3}>3</option>
+                <option value={4}>4</option>
+                <option value={5}>5</option>
+              </select>
+            </label>
+
+            <button
+              type="button"
+              onClick={handleRunPresetBenchmark}
+              disabled={!referenceFile || isBuildingCandidate || isComparing || isBenchmarking}
+              className="rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:border-slate-300 disabled:bg-slate-100 disabled:text-slate-500"
+            >
+              {isBenchmarking ? "Running Benchmark..." : "Run Preset Benchmark"}
+            </button>
+          </div>
         </div>
 
         {benchmarkResults.length === 0 ? (
@@ -1329,6 +1601,8 @@ export default function HashLabPage() {
                 <tr>
                   <th className="px-3 py-2 text-left font-semibold text-slate-600">Case</th>
                   <th className="px-3 py-2 text-left font-semibold text-slate-600">Hardness</th>
+                  <th className="px-3 py-2 text-left font-semibold text-slate-600">Runs</th>
+                  <th className="px-3 py-2 text-left font-semibold text-slate-600">Match Rate</th>
                   <th className="px-3 py-2 text-left font-semibold text-slate-600">Final</th>
                   <th className="px-3 py-2 text-left font-semibold text-slate-600">Hash</th>
                   <th className="px-3 py-2 text-left font-semibold text-slate-600">Geometric</th>
@@ -1350,12 +1624,36 @@ export default function HashLabPage() {
                       )}
                     </td>
                     <td className="px-3 py-2 text-slate-700">{item.hardness}</td>
-                    <td className="px-3 py-2 text-slate-700">{formatMetric(item.finalScore, 0)}</td>
-                    <td className="px-3 py-2 text-slate-700">{formatMetric(item.hashScore, 0)}</td>
-                    <td className="px-3 py-2 text-slate-700">{formatMetric(item.geometricScore, 0)}</td>
+                    <td className="px-3 py-2 text-slate-700">{item.runCount}/{benchmarkRepeats}</td>
+                    <td className="px-3 py-2 text-slate-700">{formatMetric(item.matchRate * 100, 0)}%</td>
+                    <td className="px-3 py-2 text-slate-700">
+                      {typeof item.finalScore === "number"
+                        ? `${formatMetric(item.finalScore, 1)} (${formatMetric(item.finalMin, 1)}-${formatMetric(item.finalMax, 1)})`
+                        : "N/A"}
+                    </td>
+                    <td className="px-3 py-2 text-slate-700">
+                      {typeof item.hashScore === "number"
+                        ? `${formatMetric(item.hashScore, 1)} (${formatMetric(item.hashMin, 1)}-${formatMetric(item.hashMax, 1)})`
+                        : "N/A"}
+                    </td>
+                    <td className="px-3 py-2 text-slate-700">
+                      {item.geometricStatus === "skipped"
+                        ? "Skipped"
+                        : typeof item.geometricScore === "number"
+                          ? `${formatMetric(item.geometricScore, 1)} (${formatMetric(item.geometricMin, 1)}-${formatMetric(item.geometricMax, 1)})`
+                          : "N/A"}
+                    </td>
                     <td className="px-3 py-2 text-slate-700">{item.method}</td>
-                    <td className="px-3 py-2 text-slate-700">{formatMetric(item.watermarkConfidence, 3)}</td>
-                    <td className="px-3 py-2 text-slate-700">{formatMetric(item.watermarkBer, 4)}</td>
+                    <td className="px-3 py-2 text-slate-700">
+                      {typeof item.watermarkConfidence === "number"
+                        ? `${formatMetric(item.watermarkConfidence, 3)} (${formatMetric(item.watermarkConfidenceMin, 3)}-${formatMetric(item.watermarkConfidenceMax, 3)})`
+                        : "N/A"}
+                    </td>
+                    <td className="px-3 py-2 text-slate-700">
+                      {typeof item.watermarkBer === "number"
+                        ? `${formatMetric(item.watermarkBer, 4)} (${formatMetric(item.watermarkBerMin, 4)}-${formatMetric(item.watermarkBerMax, 4)})`
+                        : "N/A"}
+                    </td>
                     <td className="px-3 py-2">
                       <span
                         className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
@@ -1414,16 +1712,35 @@ export default function HashLabPage() {
                   );
                 })}
 
-                <line
-                  x1={benchmarkTrend.padding.left}
-                  x2={benchmarkTrend.width - benchmarkTrend.padding.right}
-                  y1={benchmarkTrend.thresholdY}
-                  y2={benchmarkTrend.thresholdY}
-                  stroke="#ef4444"
-                  strokeWidth="1.5"
-                  strokeDasharray="6 4"
-                />
+                {benchmarkTrend.thresholdOverlays.map((overlay) => {
+                  const isCurrent = overlay.threshold === threshold;
+                  const color =
+                    overlay.threshold === 75
+                      ? "#16a34a"
+                      : overlay.threshold === 80
+                        ? "#ca8a04"
+                        : overlay.threshold === 85
+                          ? "#ef4444"
+                          : overlay.threshold === 90
+                            ? "#7c3aed"
+                            : "#475569";
 
+                  return (
+                    <line
+                      key={`threshold-${overlay.threshold}`}
+                      x1={benchmarkTrend.padding.left}
+                      x2={benchmarkTrend.width - benchmarkTrend.padding.right}
+                      y1={overlay.y}
+                      y2={overlay.y}
+                      stroke={color}
+                      strokeWidth={isCurrent ? "2" : "1.2"}
+                      strokeDasharray="6 4"
+                      opacity={isCurrent ? "1" : "0.65"}
+                    />
+                  );
+                })}
+
+                <path d={benchmarkTrend.finalBandPath} fill="#05966922" stroke="none" />
                 <path d={benchmarkTrend.finalPath} fill="none" stroke="#059669" strokeWidth="2.5" />
                 <path d={benchmarkTrend.hashPath} fill="none" stroke="#2563eb" strokeWidth="2" />
                 <path d={benchmarkTrend.geometricPath} fill="none" stroke="#d97706" strokeWidth="2" />
@@ -1453,10 +1770,63 @@ export default function HashLabPage() {
 
             <div className="mt-3 flex flex-wrap gap-3 text-xs text-slate-600">
               <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-600" /> Final Score</span>
+              <span className="inline-flex items-center gap-1"><span className="h-2 w-4 rounded-sm bg-emerald-200" /> Final Min-Max Band</span>
               <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-blue-600" /> Hash Score</span>
               <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-600" /> Geometric Score</span>
               <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-violet-600" /> Watermark Confidence x100</span>
-              <span className="inline-flex items-center gap-1"><span className="h-0.5 w-4 bg-red-500" /> Threshold</span>
+              <span className="inline-flex items-center gap-1"><span className="h-0.5 w-4 bg-slate-500" /> Threshold Sweep</span>
+            </div>
+
+            <div className="mt-4 grid gap-4 lg:grid-cols-2">
+              <article className="rounded-lg border border-slate-200 bg-white p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Threshold Sweep Pass Rates</p>
+                <div className="mt-2 overflow-x-auto">
+                  <table className="min-w-full text-xs">
+                    <thead>
+                      <tr className="text-left text-slate-500">
+                        <th className="py-1">Threshold</th>
+                        <th className="py-1">Matched</th>
+                        <th className="py-1">Pass Rate</th>
+                      </tr>
+                    </thead>
+                    <tbody className="text-slate-700">
+                      {benchmarkTrend.thresholdOverlays.map((overlay) => (
+                        <tr key={`overlay-row-${overlay.threshold}`}>
+                          <td className="py-1 font-medium">{overlay.threshold}</td>
+                          <td className="py-1">{overlay.matchedCount}/{benchmarkTrend.totalCount}</td>
+                          <td className="py-1">{formatMetric(overlay.passRate * 100, 1)}%</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </article>
+
+              <article className="rounded-lg border border-slate-200 bg-white p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Pass Rate By Hardness Bin</p>
+                <div className="mt-2 overflow-x-auto">
+                  <table className="min-w-full text-xs">
+                    <thead>
+                      <tr className="text-left text-slate-500">
+                        <th className="py-1">Bin</th>
+                        <th className="py-1">Cases</th>
+                        <th className="py-1">Pass Rate</th>
+                        <th className="py-1">Avg Final</th>
+                      </tr>
+                    </thead>
+                    <tbody className="text-slate-700">
+                      {benchmarkTrend.hardnessBins.map((bin) => (
+                        <tr key={`bin-${bin.label}`}>
+                          <td className="py-1 font-medium">{bin.label}</td>
+                          <td className="py-1">{bin.matchedCount}/{bin.total}</td>
+                          <td className="py-1">{bin.passRate === null ? "N/A" : `${formatMetric(bin.passRate * 100, 1)}%`}</td>
+                          <td className="py-1">{formatMetric(bin.averageFinal, 1)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </article>
             </div>
           </article>
         ) : null}
@@ -1487,7 +1857,9 @@ export default function HashLabPage() {
                   Hash score: {compareResult.comparison.result?.hash_similarity_score ?? "N/A"}
                 </p>
                 <p className="mt-1 text-xs text-slate-500">
-                  Geometric score: {compareResult.comparison.result?.geometric_similarity_score ?? "N/A"}
+                  Geometric score: {compareResult.comparison.result?.geometric_status === "skipped"
+                    ? "Skipped"
+                    : compareResult.comparison.result?.geometric_similarity_score ?? "N/A"}
                 </p>
                 <p className="mt-1 text-xs text-slate-500">
                   Algorithm: {compareResult.comparison.algorithm}

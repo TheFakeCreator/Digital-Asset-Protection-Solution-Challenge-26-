@@ -223,6 +223,7 @@
 - Hash Lab now includes an explainability panel showing noise recipe and live detection decision steps.
 - Detection matcher now auto-normalizes tiny and very large images, so dimension extremes are accepted without manual resizing.
 - Hash Lab preset stress check now includes a larger progressive hard-edit ladder and a built-in effectiveness-vs-hardness graph.
+- Hash Lab stress analytics now supports 3-5 repeat runs per preset, mean/min/max trend bands, threshold sweep overlays (75/80/85/90), and pass-rate-by-hardness bins.
 
 **Acceptance Criteria:** Can detect same sports image on 3+ different platforms (in progress)
 
