@@ -227,6 +227,7 @@ python crawler_worker.py --platform all --limit 120 --no-live-fetch --output-dir
 - **[backend/docs/reports/day4-crawler-multiplatform-smoke.md](./backend/docs/reports/day4-crawler-multiplatform-smoke.md)** - Day 4 multi-platform crawler smoke validation
 - **[backend/docs/reports/day4-mvp-synthetic-benchmark.md](./backend/docs/reports/day4-mvp-synthetic-benchmark.md)** - Day 4 synthetic benchmark results for MVP detection demo
 - **[backend/docs/reports/mvp-detection-demo-template.md](./backend/docs/reports/mvp-detection-demo-template.md)** - MVP demo scorecard template for simulated detection runs
+- **[backend/docs/render-cicd-deployment.md](./backend/docs/render-cicd-deployment.md)** - Render deployment and GitHub Actions CI/CD runbook
 - **[backend/postman/day2-asset-api.postman_collection.json](./backend/postman/day2-asset-api.postman_collection.json)** - Postman collection for Day 2 asset APIs
 - **[.github/AGENTS.md](./.github/AGENTS.md)** - Workspace-level agent routing and guardrails
 - **[.github/agents/](./.github/agents/)** - Executable domain agents (`*.agent.md`)
