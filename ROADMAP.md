@@ -204,14 +204,18 @@
 - [ ] Add simple statistics (total assets, total detections, platforms monitored)
 
 #### End of Day Deliverables
-- ✅ 5 platforms integrated into crawler
-- ✅ 500+ images crawled across platforms
-- ✅ Detection accuracy validated (tune thresholds)
-- ✅ Caching layer reduces repeated checks by 70%+
-- ✅ Dashboard shows multi-platform results
+- ✅ Backend optimization shipped: cache, dedupe, history tracking, and batch detection search flow
+- ✅ Platform-agnostic crawler interface shipped with YouTube and Reddit live collection paths
 - ✅ Repeatable synthetic benchmark and report flow for MVP demo validation
+- ⚠️ Instagram/Facebook live connectors still pending
+- ⚠️ Dashboard multi-platform enhancements still pending
 
-**Acceptance Criteria:** Can detect same sports image on 3+ different platforms
+**Status Update (2026-04-14):**
+- Synthetic benchmark gate PASS (core recall 70.83%, false positive rate 0.0%).
+- Hard-edit robustness is still below target (hard recall 44.44%).
+- Next focus: threshold and robustness tuning for text overlay and aggressive crop cases.
+
+**Acceptance Criteria:** Can detect same sports image on 3+ different platforms (in progress)
 
 ---
 
