@@ -56,9 +56,20 @@ export type Detection = {
   assetId: string | DetectionAssetSummary;
   platform: string;
   url: string;
+  imageSignature?: string;
+  sourceLocalPath?: string;
   confidence: number;
   status: "pending" | "confirmed" | "dismissed";
   dateFound: string;
+  lastSeenAt?: string;
+  occurrenceCount?: number;
+  history?: Array<{
+    url: string;
+    platform: string;
+    sourceLocalPath: string;
+    similarityScore: number;
+    dateFound: string;
+  }>;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -70,14 +81,28 @@ export type DetectionListResponse = {
   total: number;
 };
 
+export type DetectionBatchItemResult = {
+  assetId: string;
+  status: "completed" | "failed";
+  createdDetections: number;
+  updatedDetections: number;
+  error?: string;
+};
+
 export type DetectionSearchJob = {
   id: string;
-  assetId: string;
+  type: "single" | "batch";
+  assetId: string | null;
+  assetIds: string[];
   status: "queued" | "running" | "completed" | "failed";
   createdAt: string;
   startedAt: string | null;
   completedAt: string | null;
   createdDetections: number;
+  updatedDetections: number;
+  totalAssets: number;
+  processedAssets: number;
+  batchResults: DetectionBatchItemResult[];
   error: string;
 };
 
@@ -163,6 +188,16 @@ export function fetchDetections(assetId?: string, page = 1, limit = 20) {
 export function triggerDetectionSearch(assetId: string) {
   return requestApi<DetectionSearchResponse>(`/api/v1/detections/search/${assetId}`, {
     method: "POST"
+  });
+}
+
+export function triggerBatchDetectionSearch(assetIds: string[]) {
+  return requestApi<DetectionSearchResponse>("/api/v1/detections/search/batch", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ assetIds })
   });
 }
 

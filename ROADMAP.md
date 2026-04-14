@@ -175,24 +175,25 @@
 #### Development Tasks
 
 **Person 1: Backend Optimization**
-- [ ] Add result caching (Redis) to avoid re-checking same content
-- [ ] Implement detection result deduplication (same image from multiple URLs)
-- [ ] Add detection history tracking
-- [ ] Performance optimization: batch processing for multiple assets
+- [x] Add result caching (Redis) to avoid re-checking same content
+- [x] Implement detection result deduplication (same image from multiple URLs)
+- [x] Add detection history tracking
+- [x] Performance optimization: batch processing for multiple assets
 
 **Person 2: Fingerprinting Polish**
-- [ ] Test fingerprinting on 50+ diverse images
+- [x] Test fingerprinting on 50+ diverse images
+- [x] Build synthetic MVP benchmark (transformed positives + negative controls)
 - [ ] Tune similarity threshold based on test results
 - [ ] Add support for minor image modifications (compression, cropping)
 - [ ] Document hash algorithm choice and why it works
 
 **Person 3: Extend Crawler - 4 More Platforms**
 - [ ] Platform 2: Instagram (hashtag search for sports)
-- [ ] Platform 3: Reddit (sports subreddits)
+- [x] Platform 3: Reddit (sports subreddits)
 - [ ] Platform 4: Facebook public posts
-- [ ] Platform 5: YouTube (video frame extraction + hashing)
-- [ ] Implement platform-agnostic crawler interface
-- [ ] Add rotating user agents and rate limiting
+- [x] Platform 5: YouTube (video frame extraction + hashing)
+- [x] Implement platform-agnostic crawler interface
+- [x] Add rotating user agents and rate limiting
 - [ ] Crawler can now handle ~1000 images in crawl cycle
 
 **Person 4: Dashboard Enhancements**
@@ -208,6 +209,7 @@
 - ✅ Detection accuracy validated (tune thresholds)
 - ✅ Caching layer reduces repeated checks by 70%+
 - ✅ Dashboard shows multi-platform results
+- ✅ Repeatable synthetic benchmark and report flow for MVP demo validation
 
 **Acceptance Criteria:** Can detect same sports image on 3+ different platforms
 
