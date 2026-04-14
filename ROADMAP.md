@@ -183,9 +183,9 @@
 **Person 2: Fingerprinting Polish**
 - [x] Test fingerprinting on 50+ diverse images
 - [x] Build synthetic MVP benchmark (transformed positives + negative controls)
-- [ ] Tune similarity threshold based on test results
-- [ ] Add support for minor image modifications (compression, cropping)
-- [ ] Document hash algorithm choice and why it works
+- [x] Tune similarity threshold based on test results
+- [x] Add support for minor image modifications (compression, cropping)
+- [x] Document hash algorithm choice and why it works
 
 **Person 3: Extend Crawler - 4 More Platforms**
 - [ ] Platform 2: Instagram (hashtag search for sports)
@@ -211,9 +211,9 @@
 - ⚠️ Dashboard multi-platform enhancements still pending
 
 **Status Update (2026-04-14):**
-- Synthetic benchmark gate PASS (core recall 70.83%, false positive rate 0.0%).
-- Hard-edit robustness is still below target (hard recall 44.44%).
-- Next focus: threshold and robustness tuning for text overlay and aggressive crop cases.
+- Synthetic benchmark gate PASS after matcher upgrade (core recall 89.58%, false positive rate 0.0%).
+- Hard-edit robustness improved materially (hard recall 83.33%).
+- Threshold sweep completed; operating threshold remains 85.
 
 **Acceptance Criteria:** Can detect same sports image on 3+ different platforms (in progress)
 

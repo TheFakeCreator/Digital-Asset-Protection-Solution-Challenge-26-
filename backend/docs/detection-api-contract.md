@@ -30,7 +30,8 @@ Behavior:
 - Returns 202 Accepted immediately
 - Enqueues a background detection job
 - Job compares reference asset against candidate images using `python/detection_service.py`
-- Similarity score is 0-100; matches are flagged when score >= `DETECTION_SIMILARITY_THRESHOLD` (default 85)
+- Detection matcher uses a crop-aware multi-hash profile (`phash`, `dhash`, `whash`, `ahash`) for stronger robustness to compression and moderate cropping
+- Similarity score is 0-100; matches are flagged when score >= `DETECTION_SIMILARITY_THRESHOLD` (default 85, tuned via synthetic benchmark sweep)
 - Candidate pool is sourced from crawler manifest (`backend/data/crawled/twitter/latest.json`) when available
 - Python comparison responses are cached (`DETECTION_CACHE_TTL_SECONDS`) to reduce repeated work
 - Matches are deduplicated by image signature even when multiple URLs reference the same image

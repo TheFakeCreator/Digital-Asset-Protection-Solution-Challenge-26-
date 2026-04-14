@@ -3,14 +3,34 @@ import json
 import os
 import sys
 
-from PIL import Image, UnidentifiedImageError
+from PIL import Image, ImageOps, UnidentifiedImageError
 import imagehash
 
 
-ALGORITHM = "phash"
-PHASH_BITS = 64
+ALGORITHM = "multihash-v1"
 DEFAULT_THRESHOLD = 85
 DEFAULT_MIN_SIZE = 16
+DEFAULT_CROP_FACTOR = 0.92
+VARIANT_PAIRINGS = [
+    ("full", "full"),
+    ("full", "center"),
+    ("center", "full"),
+    ("center", "center"),
+    ("top_left", "full"),
+    ("top_right", "full"),
+    ("bottom_left", "full"),
+    ("bottom_right", "full"),
+    ("full", "top_left"),
+    ("full", "top_right"),
+    ("full", "bottom_left"),
+    ("full", "bottom_right"),
+]
+HASH_WEIGHTS = {
+    "phash": 0.4,
+    "dhash": 0.25,
+    "whash": 0.2,
+    "ahash": 0.15,
+}
 
 
 def build_parser():
@@ -36,6 +56,48 @@ def clamp_similarity(value):
     return max(0, min(100, int(round(value))))
 
 
+def normalize_image(image):
+    return ImageOps.autocontrast(image.convert("RGB"))
+
+
+def build_variants(image):
+    width, height = image.size
+
+    crop_width = max(2, int(width * DEFAULT_CROP_FACTOR))
+    crop_height = max(2, int(height * DEFAULT_CROP_FACTOR))
+    x_offset = max(0, width - crop_width)
+    y_offset = max(0, height - crop_height)
+    center_x = max(0, (width - crop_width) // 2)
+    center_y = max(0, (height - crop_height) // 2)
+
+    boxes = {
+        "full": (0, 0, width, height),
+        "center": (center_x, center_y, center_x + crop_width, center_y + crop_height),
+        "top_left": (0, 0, crop_width, crop_height),
+        "top_right": (x_offset, 0, x_offset + crop_width, crop_height),
+        "bottom_left": (0, y_offset, crop_width, y_offset + crop_height),
+        "bottom_right": (x_offset, y_offset, x_offset + crop_width, y_offset + crop_height),
+    }
+
+    variants = {}
+    for name, box in boxes.items():
+        left, top, right, bottom = box
+        if right <= left or bottom <= top:
+            continue
+        variants[name] = image.crop((left, top, right, bottom))
+
+    return variants
+
+
+def compute_hash_bundle(image):
+    return {
+        "phash": str(imagehash.phash(image)),
+        "dhash": str(imagehash.dhash(image)),
+        "whash": str(imagehash.whash(image)),
+        "ahash": str(imagehash.average_hash(image)),
+    }
+
+
 def compute_image_hash(image_path, min_size):
     if not os.path.isfile(image_path):
         return {
@@ -56,9 +118,16 @@ def compute_image_hash(image_path, min_size):
                     "height": height,
                 }
 
+            normalized = normalize_image(image)
+            variants = build_variants(normalized)
+            hashes_by_variant = {
+                variant_name: compute_hash_bundle(variant_image)
+                for variant_name, variant_image in variants.items()
+            }
+
             return {
                 "status": "ok",
-                "hash": str(imagehash.phash(image)),
+                "hashes": hashes_by_variant,
                 "width": width,
                 "height": height,
             }
@@ -76,10 +145,48 @@ def compute_image_hash(image_path, min_size):
         }
 
 
-def similarity_score(reference_hash, candidate_hash):
+def algorithm_similarity(reference_hash, candidate_hash):
+    hash_bits = len(reference_hash) * 4
     distance = imagehash.hex_to_hash(reference_hash) - imagehash.hex_to_hash(candidate_hash)
-    similarity = (1 - (distance / PHASH_BITS)) * 100
-    return clamp_similarity(similarity)
+    similarity = (1 - (distance / hash_bits)) * 100
+    return max(0.0, min(100.0, similarity))
+
+
+def hash_bundle_similarity(reference_bundle, candidate_bundle):
+    weighted_total = 0.0
+    weights_used = 0.0
+
+    for algorithm, weight in HASH_WEIGHTS.items():
+        ref_value = reference_bundle.get(algorithm)
+        cand_value = candidate_bundle.get(algorithm)
+        if not ref_value or not cand_value:
+            continue
+
+        weighted_total += algorithm_similarity(ref_value, cand_value) * weight
+        weights_used += weight
+
+    if weights_used == 0:
+        return 0.0
+
+    return weighted_total / weights_used
+
+
+def similarity_score(reference_hashes, candidate_hashes):
+    best_score = 0.0
+    best_pairing = "full:full"
+
+    for reference_variant, candidate_variant in VARIANT_PAIRINGS:
+        reference_bundle = reference_hashes.get(reference_variant)
+        candidate_bundle = candidate_hashes.get(candidate_variant)
+        if not reference_bundle or not candidate_bundle:
+            continue
+
+        score = hash_bundle_similarity(reference_bundle, candidate_bundle)
+        if score > best_score:
+            best_score = score
+            best_pairing = f"{reference_variant}:{candidate_variant}"
+
+    return clamp_similarity(best_score), best_pairing
 
 
 def compare_batch(reference_path, candidate_paths, threshold, min_size):
@@ -108,12 +215,13 @@ def compare_batch(reference_path, candidate_paths, threshold, min_size):
             results.append(result)
             continue
 
-        score = similarity_score(reference["hash"], candidate["hash"])
+        score, matched_variant = similarity_score(reference["hashes"], candidate["hashes"])
         result.update(
             {
                 "status": "ok",
                 "similarity_score": score,
                 "is_match": score >= threshold,
+                "match_variant": matched_variant,
                 "width": candidate["width"],
                 "height": candidate["height"],
             }
@@ -125,7 +233,7 @@ def compare_batch(reference_path, candidate_paths, threshold, min_size):
         "threshold": threshold,
         "reference": {
             "image_path": reference_path,
-            "hash": reference["hash"],
+            "variants": sorted(reference["hashes"].keys()),
             "width": reference["width"],
             "height": reference["height"],
         },

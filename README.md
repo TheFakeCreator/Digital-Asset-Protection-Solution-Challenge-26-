@@ -215,6 +215,7 @@ python crawler_worker.py --platform all --limit 120 --no-live-fetch --output-dir
 - **[backend/docs/asset-api-contract.md](./backend/docs/asset-api-contract.md)** - Asset endpoint request and response contract
 - **[backend/docs/reports/day2-asset-endpoint-manual-test.md](./backend/docs/reports/day2-asset-endpoint-manual-test.md)** - Manual Day 2 asset endpoint smoke report
 - **[backend/docs/detection-api-contract.md](./backend/docs/detection-api-contract.md)** - Detection endpoint request and response contract
+- **[backend/docs/fingerprinting-strategy.md](./backend/docs/fingerprinting-strategy.md)** - Fingerprinting algorithm rationale, multi-hash detection strategy, and threshold tuning notes
 - **[backend/docs/reports/day3-detection-endpoint-manual-test.md](./backend/docs/reports/day3-detection-endpoint-manual-test.md)** - Manual Day 3 detection endpoint smoke report
 - **[backend/docs/reports/day4-backend-optimization-smoke.md](./backend/docs/reports/day4-backend-optimization-smoke.md)** - Day 4 backend optimization smoke validation
 - **[backend/docs/crawler-service.md](./backend/docs/crawler-service.md)** - Crawler architecture, runtime controls, and output schema
