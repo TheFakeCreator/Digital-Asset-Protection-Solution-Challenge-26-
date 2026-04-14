@@ -175,41 +175,57 @@
 #### Development Tasks
 
 **Person 1: Backend Optimization**
-- [ ] Add result caching (Redis) to avoid re-checking same content
-- [ ] Implement detection result deduplication (same image from multiple URLs)
-- [ ] Add detection history tracking
-- [ ] Performance optimization: batch processing for multiple assets
+- [x] Add result caching (Redis) to avoid re-checking same content
+- [x] Implement detection result deduplication (same image from multiple URLs)
+- [x] Add detection history tracking
+- [x] Performance optimization: batch processing for multiple assets
 
 **Person 2: Fingerprinting Polish**
-- [ ] Test fingerprinting on 50+ diverse images
-- [ ] Tune similarity threshold based on test results
-- [ ] Add support for minor image modifications (compression, cropping)
-- [ ] Document hash algorithm choice and why it works
+- [x] Test fingerprinting on 50+ diverse images
+- [x] Build synthetic MVP benchmark (transformed positives + negative controls)
+- [x] Tune similarity threshold based on test results
+- [x] Add support for minor image modifications (compression, cropping)
+- [x] Document hash algorithm choice and why it works
 
 **Person 3: Extend Crawler - 4 More Platforms**
 - [ ] Platform 2: Instagram (hashtag search for sports)
-- [ ] Platform 3: Reddit (sports subreddits)
+- [x] Platform 3: Reddit (sports subreddits)
 - [ ] Platform 4: Facebook public posts
-- [ ] Platform 5: YouTube (video frame extraction + hashing)
-- [ ] Implement platform-agnostic crawler interface
-- [ ] Add rotating user agents and rate limiting
+- [x] Platform 5: YouTube (video frame extraction + hashing)
+- [x] Implement platform-agnostic crawler interface
+- [x] Add rotating user agents and rate limiting
 - [ ] Crawler can now handle ~1000 images in crawl cycle
 
 **Person 4: Dashboard Enhancements**
-- [ ] Add platform filter to detection results
-- [ ] Show detection timeline (when each copy found)
-- [ ] Add "Report" button for false positives
-- [ ] Implement real-time detection status (running/completed)
-- [ ] Add simple statistics (total assets, total detections, platforms monitored)
+- [x] Add platform filter to detection results
+- [x] Show detection timeline (when each copy found)
+- [x] Add "Report" button for false positives
+- [x] Implement real-time detection status (running/completed)
+- [x] Add simple statistics (total assets, total detections, platforms monitored)
 
 #### End of Day Deliverables
-- ✅ 5 platforms integrated into crawler
-- ✅ 500+ images crawled across platforms
-- ✅ Detection accuracy validated (tune thresholds)
-- ✅ Caching layer reduces repeated checks by 70%+
-- ✅ Dashboard shows multi-platform results
+- ✅ Backend optimization shipped: cache, dedupe, history tracking, and batch detection search flow
+- ✅ Platform-agnostic crawler interface shipped with YouTube and Reddit live collection paths
+- ✅ Repeatable synthetic benchmark and report flow for MVP demo validation
+- ✅ Dashboard detection UX enhancements shipped (filters, timeline, live status, false-positive report action, stats)
+- ✅ Visual hash-tracking lab shipped for edited image demos (crop, rotate, text, overlay)
+- ⚠️ Instagram/Facebook live connectors still pending
 
-**Acceptance Criteria:** Can detect same sports image on 3+ different platforms
+**Status Update (2026-04-14):**
+- Synthetic benchmark gate PASS after matcher upgrade (core recall 89.58%, false positive rate 0.0%).
+- Hard-edit robustness improved materially (hard recall 83.33%).
+- Threshold sweep completed; operating threshold remains 85.
+- Matcher upgraded to `multihash-v2-hybrid` with geometric fallback for near-threshold crop/rotation/overlay edits.
+- Detections dashboard now includes timeline and triage-ready reporting controls.
+- Hash Lab page now provides interactive edited-image tracking checks through a dedicated preview compare API.
+- Hash Lab now compares two methods side-by-side: perceptual hash matching vs robust watermark recovery.
+- Hash Lab now includes a one-click preset stress benchmark table for crop/rotate/overlay regression checks.
+- Hash Lab now includes an explainability panel showing noise recipe and live detection decision steps.
+- Detection matcher now auto-normalizes tiny and very large images, so dimension extremes are accepted without manual resizing.
+- Hash Lab preset stress check now includes a larger progressive hard-edit ladder and a built-in effectiveness-vs-hardness graph.
+- Hash Lab stress analytics now supports 3-5 repeat runs per preset, mean/min/max trend bands, threshold sweep overlays (75/80/85/90), and pass-rate-by-hardness bins.
+
+**Acceptance Criteria:** Can detect same sports image on 3+ different platforms (in progress)
 
 ---
 

@@ -1,6 +1,8 @@
 pillow
 imagehash
 opencv-python
+scipy
+reedsolo
 requests
 beautifulsoup4
 selenium

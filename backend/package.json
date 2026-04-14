@@ -13,7 +13,8 @@
 	},
 	"scripts": {
 		"dev": "nodemon src/index.js",
-		"start": "node src/index.js"
+		"start": "node src/index.js",
+		"mvp:benchmark": "python python/mvp_detection_benchmark.py"
 	},
 	"name": "digital-asset-protection-backend",
 	"version": "0.1.0",

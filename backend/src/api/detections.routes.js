@@ -1,11 +1,20 @@
 const express = require("express");
+const fs = require("fs/promises");
 const mongoose = require("mongoose");
 const { z } = require("zod");
 
 const { Asset, Detection } = require("../models");
 const { AppError } = require("../errors/app-error");
+const { uploadMedia } = require("../middleware/upload-media");
+const { compareImageBatch } = require("../services/detection.bridge");
+const { generateFingerprint } = require("../services/fingerprint.bridge");
+const {
+  generateWatermarkFingerprint,
+  detectWatermarkFingerprint
+} = require("../services/watermark.bridge");
 const {
   enqueueDetectionSearch,
+  enqueueBatchDetectionSearch,
   getDetectionSearchJob
 } = require("../services/detection-search.service");
 
@@ -16,6 +25,56 @@ const listDetectionsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20)
 });
+
+const batchDetectionSearchBodySchema = z.object({
+  assetIds: z.array(z.string().trim().min(1)).min(1).max(25)
+});
+
+const previewCompareBodySchema = z.object({
+  threshold: z.coerce.number().int().min(0).max(100).default(85),
+  watermarkKey: z.string().trim().min(1).max(128).default("hash-lab-demo-key")
+});
+
+function normalizeHexFingerprint(value) {
+  if (!value || typeof value !== "string") {
+    return "";
+  }
+
+  return value.replace(/[^a-f0-9]/gi, "").toLowerCase();
+}
+
+function hexToBits(value) {
+  const normalized = normalizeHexFingerprint(value);
+  if (!normalized) {
+    return [];
+  }
+
+  return normalized
+    .split("")
+    .map((char) => Number.parseInt(char, 16).toString(2).padStart(4, "0"))
+    .join("")
+    .split("")
+    .map((bit) => Number.parseInt(bit, 10));
+}
+
+function computeBitErrorRate(referenceHex, candidateHex) {
+  const referenceBits = hexToBits(referenceHex);
+  const candidateBits = hexToBits(candidateHex);
+
+  const compared = Math.min(referenceBits.length, candidateBits.length);
+  if (compared === 0) {
+    return 1;
+  }
+
+  let mismatchCount = 0;
+  for (let index = 0; index < compared; index += 1) {
+    if (referenceBits[index] !== candidateBits[index]) {
+      mismatchCount += 1;
+    }
+  }
+
+  return mismatchCount / compared;
+}
 
 function parseOrThrow(schema, payload) {
   const parsed = schema.safeParse(payload);
@@ -35,6 +94,136 @@ function assertDatabaseConnected() {
     );
   }
 }
+
+async function safeUnlink(filePath) {
+  if (!filePath) {
+    return;
+  }
+
+  try {
+    await fs.unlink(filePath);
+  } catch (_error) {
+    // Best-effort cleanup only.
+  }
+}
+
+router.post(
+  "/preview-compare",
+  uploadMedia.fields([
+    { name: "reference", maxCount: 1 },
+    { name: "candidate", maxCount: 1 }
+  ]),
+  async (req, res, next) => {
+    let uploadedPaths = [];
+
+    try {
+      const files = req.files && typeof req.files === "object" ? req.files : {};
+      const referenceFile = Array.isArray(files.reference) ? files.reference[0] : null;
+      const candidateFile = Array.isArray(files.candidate) ? files.candidate[0] : null;
+
+      if (!referenceFile || !candidateFile) {
+        throw new AppError(
+          "Both reference and candidate images are required",
+          400,
+          "FILE_REQUIRED"
+        );
+      }
+
+      uploadedPaths = [referenceFile.path, candidateFile.path].filter(Boolean);
+
+      const { threshold, watermarkKey } = parseOrThrow(previewCompareBodySchema, req.body);
+
+      const [
+        referenceFingerprint,
+        candidateFingerprint,
+        comparison,
+        watermarkReference,
+        watermarkRecovered
+      ] = await Promise.all([
+        generateFingerprint(referenceFile.path),
+        generateFingerprint(candidateFile.path),
+        compareImageBatch(referenceFile.path, [candidateFile.path], threshold),
+        generateWatermarkFingerprint(referenceFile.path, watermarkKey),
+        detectWatermarkFingerprint(candidateFile.path, watermarkKey)
+      ]);
+
+      const firstResult = Array.isArray(comparison.results) ? comparison.results[0] : null;
+
+      const watermarkCrossBitErrorRate = computeBitErrorRate(
+        watermarkReference.fingerprintHex,
+        watermarkRecovered.fingerprintHex
+      );
+
+      res.status(200).json({
+        success: true,
+        data: {
+          reference: {
+            fileName: referenceFile.originalname,
+            hash: referenceFingerprint.hash,
+            algorithm: referenceFingerprint.algorithm
+          },
+          candidate: {
+            fileName: candidateFile.originalname,
+            hash: candidateFingerprint.hash,
+            algorithm: candidateFingerprint.algorithm
+          },
+          comparison: {
+            algorithm: comparison.algorithm,
+            threshold: comparison.threshold,
+            referenceVariants: comparison.reference?.variants || [],
+            result: firstResult
+          },
+          watermarkComparison: {
+            key: watermarkKey,
+            referenceFingerprint: watermarkReference.fingerprintHex,
+            recoveredFingerprint: watermarkRecovered.fingerprintHex,
+            confidence: watermarkRecovered.confidence,
+            bitErrorRate: watermarkRecovered.bitErrorRate,
+            crossMediaBitErrorRate: Number(watermarkCrossBitErrorRate.toFixed(4)),
+            framesUsed: watermarkRecovered.framesUsed,
+            eccScheme: watermarkReference.eccScheme,
+            encodedBitLength: watermarkReference.encodedBitLength
+          }
+        }
+      });
+    } catch (error) {
+      next(error);
+    } finally {
+      await Promise.all(uploadedPaths.map((filePath) => safeUnlink(filePath)));
+    }
+  }
+);
+
+router.post("/search/batch", async (req, res, next) => {
+  try {
+    assertDatabaseConnected();
+
+    const { assetIds } = parseOrThrow(batchDetectionSearchBodySchema, req.body);
+    const uniqueAssetIds = [...new Set(assetIds)];
+
+    for (const assetId of uniqueAssetIds) {
+      if (!mongoose.isValidObjectId(assetId)) {
+        throw new AppError(`Invalid asset id: ${assetId}`, 400, "INVALID_ASSET_ID");
+      }
+    }
+
+    const assets = await Asset.find({ _id: { $in: uniqueAssetIds } }).select({ _id: 1 }).lean();
+    if (assets.length !== uniqueAssetIds.length) {
+      throw new AppError("One or more assets were not found", 404, "ASSET_NOT_FOUND");
+    }
+
+    const job = enqueueBatchDetectionSearch(uniqueAssetIds);
+
+    res.status(202).json({
+      success: true,
+      data: {
+        job
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
 
 router.post("/search/:assetId", async (req, res, next) => {
   try {

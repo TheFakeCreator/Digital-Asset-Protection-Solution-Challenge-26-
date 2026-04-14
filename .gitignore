@@ -93,6 +93,9 @@ backend/uploads/
 # Generated crawler output artifacts
 backend/data/crawled/
 
+# Generated benchmark output artifacts
+backend/data/benchmarks/
+
 # Docker
 .dockerignore
 docker-compose.override.yml

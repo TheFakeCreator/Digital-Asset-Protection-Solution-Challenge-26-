@@ -82,6 +82,20 @@ function getDetectionAssetId(assetRef: Detection["assetId"]) {
   return assetRef?._id || "";
 }
 
+function buildFalsePositiveReportText(detection: Detection) {
+  return [
+    "False Positive Detection Report",
+    `Detection ID: ${detection._id}`,
+    `Platform: ${detection.platform}`,
+    `Confidence: ${detection.confidence}`,
+    `URL: ${detection.url}`,
+    `Found At: ${detection.dateFound}`,
+    `Asset ID: ${getDetectionAssetId(detection.assetId)}`,
+    `Asset Name: ${getDetectionAssetName(detection.assetId)}`,
+    "Notes:"
+  ].join("\n");
+}
+
 export default function DetectionsPage() {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [selectedAssetId, setSelectedAssetId] = useState("");
@@ -94,6 +108,7 @@ export default function DetectionsPage() {
   const [minConfidence, setMinConfidence] = useState(0);
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  const [reportedDetectionIds, setReportedDetectionIds] = useState<Record<string, boolean>>({});
   const [notice, setNotice] = useState<Notice | null>(null);
 
   const selectedAsset = useMemo(
@@ -134,6 +149,27 @@ export default function DetectionsPage() {
       return true;
     });
   }, [detections, platformFilter, minConfidence, fromDate, toDate]);
+
+  const detectionTimeline = useMemo(() => {
+    return [...filteredDetections].sort((left, right) => {
+      return new Date(right.dateFound).getTime() - new Date(left.dateFound).getTime();
+    });
+  }, [filteredDetections]);
+
+  const dashboardStats = useMemo(() => {
+    const platforms = new Set(detections.map((detection) => detection.platform).filter(Boolean));
+    const totalConfidence = detections.reduce((sum, detection) => sum + detection.confidence, 0);
+    const averageConfidence = detections.length > 0 ? Math.round(totalConfidence / detections.length) : 0;
+    const confirmedCount = detections.filter((detection) => detection.status === "confirmed").length;
+
+    return {
+      totalAssets: assets.length,
+      totalDetections: detections.length,
+      platformsMonitored: platforms.size,
+      averageConfidence,
+      confirmedCount
+    };
+  }, [assets.length, detections]);
 
   async function loadAssets() {
     setIsLoadingAssets(true);
@@ -176,6 +212,36 @@ export default function DetectionsPage() {
       loadDetections(selectedAssetId);
     }
   }, [selectedAssetId]);
+
+  async function handleReportFalsePositive(detection: Detection) {
+    const reportText = buildFalsePositiveReportText(detection);
+
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(reportText);
+      }
+
+      setReportedDetectionIds((previous) => ({
+        ...previous,
+        [detection._id]: true
+      }));
+
+      setNotice({
+        tone: "info",
+        message: "False-positive report prepared and copied to clipboard for triage."
+      });
+    } catch {
+      setReportedDetectionIds((previous) => ({
+        ...previous,
+        [detection._id]: true
+      }));
+
+      setNotice({
+        tone: "info",
+        message: "False-positive report marked for triage (clipboard unavailable in this browser)."
+      });
+    }
+  }
 
   async function handleTriggerDetectionRun() {
     if (!selectedAssetId) {
@@ -380,6 +446,59 @@ export default function DetectionsPage() {
         </div>
       </section>
 
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Assets Loaded</p>
+          <p className="mt-2 text-2xl font-bold text-slate-900">{dashboardStats.totalAssets}</p>
+        </article>
+        <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Detections</p>
+          <p className="mt-2 text-2xl font-bold text-slate-900">{dashboardStats.totalDetections}</p>
+        </article>
+        <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Platforms Monitored</p>
+          <p className="mt-2 text-2xl font-bold text-slate-900">{dashboardStats.platformsMonitored}</p>
+        </article>
+        <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Average Confidence</p>
+          <p className="mt-2 text-2xl font-bold text-slate-900">{dashboardStats.averageConfidence}</p>
+        </article>
+        <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:col-span-2 xl:col-span-1">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Confirmed</p>
+          <p className="mt-2 text-2xl font-bold text-slate-900">{dashboardStats.confirmedCount}</p>
+        </article>
+      </section>
+
+      <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-bold text-slate-900">Detection Timeline</h2>
+          <p className="text-sm text-slate-600">{detectionTimeline.length} events</p>
+        </div>
+
+        {detectionTimeline.length === 0 ? (
+          <p className="text-sm text-slate-600">No timeline events for the current filters.</p>
+        ) : (
+          <ol className="space-y-3">
+            {detectionTimeline.map((detection) => (
+              <li key={`timeline-${detection._id}`} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-slate-200 px-2 py-1 text-xs font-semibold uppercase text-slate-700">
+                    {detection.platform}
+                  </span>
+                  <span className={`rounded-full px-2 py-1 text-xs font-semibold ${confidenceClass(detection.confidence)}`}>
+                    Confidence {detection.confidence}
+                  </span>
+                  <span className="text-xs text-slate-500">{formatDateTime(detection.dateFound)}</span>
+                </div>
+                <p className="mt-2 text-sm text-slate-700">
+                  {getDetectionAssetName(detection.assetId)}
+                </p>
+              </li>
+            ))}
+          </ol>
+        )}
+      </section>
+
       <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-bold text-slate-900">Detections</h2>
@@ -443,6 +562,15 @@ export default function DetectionsPage() {
                     >
                       Open Source URL
                     </a>
+
+                    <button
+                      type="button"
+                      onClick={() => handleReportFalsePositive(detection)}
+                      disabled={Boolean(reportedDetectionIds[detection._id])}
+                      className="ml-2 inline-flex rounded-md border border-rose-300 bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {reportedDetectionIds[detection._id] ? "Reported" : "Report False Positive"}
+                    </button>
                   </div>
                 </div>
               </li>

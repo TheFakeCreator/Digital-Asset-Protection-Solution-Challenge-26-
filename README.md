@@ -139,6 +139,8 @@ pnpm run build
 - `GET /api/v1/assets` - List registered assets
 - `POST /api/v1/assets/fingerprints/batch` - Recompute fingerprints for multiple assets
 - `POST /api/v1/detections/search/{assetId}` - Trigger queued detection search
+- `POST /api/v1/detections/search/batch` - Trigger queued detection for multiple assets
+- `POST /api/v1/detections/preview-compare` - Compare reference/candidate image pair for visual hash-tracking demo
 - `GET /api/v1/detections/jobs/{jobId}` - Get detection job status
 - `GET /api/v1/detections` - Get paginated detection results
 - `GET /api/v1/detections/{id}` - Get detection detail
@@ -165,6 +167,7 @@ pnpm run lint
 - `/` - Dashboard (asset overview)
 - `/upload` - Upload new sports media
 - `/detections` - Trigger detection runs and filter confidence-scored results
+- `/hash-lab` - Visual side-by-side lab for edited image comparison with progressive hard-stress presets, multi-run mean/min/max graph bands, hardness-bin pass rates, threshold sweep overlays, and explainability panel (perceptual hash vs robust watermark recovery)
 
 ### Python Fingerprinting
 
@@ -183,11 +186,29 @@ python batch_fingerprint_service.py path/to/image1.jpg path/to/image2.jpg
 # Compare one reference image against multiple candidate images
 python detection_service.py --reference path/to/reference.jpg path/to/candidate1.jpg path/to/candidate2.jpg
 
-# Run crawler service (twitter target)
-python crawler_service.py --platform twitter --keywords sports athletic football basketball olympics --limit 120 --output-dir ../data/crawled/twitter
+# Detection service auto-normalizes dimensions (tiny and very large images are handled without manual resize)
+
+# Run crawler service for all supported platforms (offline-safe)
+python crawler_service.py --platform all --keywords sports athletic football basketball olympics --limit 120 --no-live-fetch --output-dir ../data/crawled
+
+# Run crawler service with live YouTube API
+python crawler_service.py --platform youtube --keywords sports athletic --limit 80 --output-dir ../data/crawled
+
+# Run crawler service with live Twitter (X API first, RSS fallback second)
+python crawler_service.py --platform twitter --keywords sports athletic football --limit 80 --output-dir ../data/crawled
+
+# Run MVP synthetic detection benchmark (auto-generates edits + evaluates recall/FPR)
+python mvp_detection_benchmark.py
+
+# One-command benchmark from backend package scripts
+pnpm run mvp:benchmark
 
 # Compatibility wrapper entrypoint
-python crawler_worker.py --platform twitter --limit 120 --output-dir ../data/crawled/twitter
+python crawler_worker.py --platform all --limit 120 --no-live-fetch --output-dir ../data/crawled
+
+# Benchmark outputs
+# - backend/data/benchmarks/mvp-detection/report.json
+# - backend/data/benchmarks/mvp-detection/report.md
 ```
 
 ## 📋 Documentation
@@ -198,9 +219,14 @@ python crawler_worker.py --platform twitter --limit 120 --output-dir ../data/cra
 - **[backend/docs/asset-api-contract.md](./backend/docs/asset-api-contract.md)** - Asset endpoint request and response contract
 - **[backend/docs/reports/day2-asset-endpoint-manual-test.md](./backend/docs/reports/day2-asset-endpoint-manual-test.md)** - Manual Day 2 asset endpoint smoke report
 - **[backend/docs/detection-api-contract.md](./backend/docs/detection-api-contract.md)** - Detection endpoint request and response contract
+- **[backend/docs/fingerprinting-strategy.md](./backend/docs/fingerprinting-strategy.md)** - Fingerprinting algorithm rationale, multi-hash detection strategy, and threshold tuning notes
 - **[backend/docs/reports/day3-detection-endpoint-manual-test.md](./backend/docs/reports/day3-detection-endpoint-manual-test.md)** - Manual Day 3 detection endpoint smoke report
+- **[backend/docs/reports/day4-backend-optimization-smoke.md](./backend/docs/reports/day4-backend-optimization-smoke.md)** - Day 4 backend optimization smoke validation
 - **[backend/docs/crawler-service.md](./backend/docs/crawler-service.md)** - Crawler architecture, runtime controls, and output schema
 - **[backend/docs/reports/day3-crawler-manual-test.md](./backend/docs/reports/day3-crawler-manual-test.md)** - Manual Day 3 crawler execution and integration report
+- **[backend/docs/reports/day4-crawler-multiplatform-smoke.md](./backend/docs/reports/day4-crawler-multiplatform-smoke.md)** - Day 4 multi-platform crawler smoke validation
+- **[backend/docs/reports/day4-mvp-synthetic-benchmark.md](./backend/docs/reports/day4-mvp-synthetic-benchmark.md)** - Day 4 synthetic benchmark results for MVP detection demo
+- **[backend/docs/reports/mvp-detection-demo-template.md](./backend/docs/reports/mvp-detection-demo-template.md)** - MVP demo scorecard template for simulated detection runs
 - **[backend/postman/day2-asset-api.postman_collection.json](./backend/postman/day2-asset-api.postman_collection.json)** - Postman collection for Day 2 asset APIs
 - **[.github/AGENTS.md](./.github/AGENTS.md)** - Workspace-level agent routing and guardrails
 - **[.github/agents/](./.github/agents/)** - Executable domain agents (`*.agent.md`)

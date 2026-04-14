@@ -56,9 +56,20 @@ export type Detection = {
   assetId: string | DetectionAssetSummary;
   platform: string;
   url: string;
+  imageSignature?: string;
+  sourceLocalPath?: string;
   confidence: number;
   status: "pending" | "confirmed" | "dismissed";
   dateFound: string;
+  lastSeenAt?: string;
+  occurrenceCount?: number;
+  history?: Array<{
+    url: string;
+    platform: string;
+    sourceLocalPath: string;
+    similarityScore: number;
+    dateFound: string;
+  }>;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -70,19 +81,82 @@ export type DetectionListResponse = {
   total: number;
 };
 
+export type DetectionBatchItemResult = {
+  assetId: string;
+  status: "completed" | "failed";
+  createdDetections: number;
+  updatedDetections: number;
+  error?: string;
+};
+
 export type DetectionSearchJob = {
   id: string;
-  assetId: string;
+  type: "single" | "batch";
+  assetId: string | null;
+  assetIds: string[];
   status: "queued" | "running" | "completed" | "failed";
   createdAt: string;
   startedAt: string | null;
   completedAt: string | null;
   createdDetections: number;
+  updatedDetections: number;
+  totalAssets: number;
+  processedAssets: number;
+  batchResults: DetectionBatchItemResult[];
   error: string;
 };
 
 export type DetectionSearchResponse = {
   job: DetectionSearchJob;
+};
+
+export type DetectionPreviewCompareResult = {
+  image_path: string;
+  algorithm: string;
+  status: "ok" | "error" | "skipped";
+  is_match: boolean;
+  similarity_score: number;
+  hash_similarity_score?: number;
+  geometric_similarity_score?: number;
+  geometric_good_matches?: number;
+  geometric_inliers?: number;
+  geometric_status?: string;
+  match_method?: "hash" | "geometric" | "none";
+  match_variant?: string;
+  width?: number;
+  height?: number;
+  error_code?: string;
+  error?: string;
+};
+
+export type DetectionPreviewCompareResponse = {
+  reference: {
+    fileName: string;
+    hash: string;
+    algorithm: string;
+  };
+  candidate: {
+    fileName: string;
+    hash: string;
+    algorithm: string;
+  };
+  comparison: {
+    algorithm: string;
+    threshold: number;
+    referenceVariants: string[];
+    result: DetectionPreviewCompareResult | null;
+  };
+  watermarkComparison: {
+    key: string;
+    referenceFingerprint: string;
+    recoveredFingerprint: string;
+    confidence: number;
+    bitErrorRate: number;
+    crossMediaBitErrorRate: number;
+    framesUsed: number;
+    eccScheme: string;
+    encodedBitLength: number;
+  };
 };
 
 export type UploadAssetInput = {
@@ -166,8 +240,36 @@ export function triggerDetectionSearch(assetId: string) {
   });
 }
 
+export function triggerBatchDetectionSearch(assetIds: string[]) {
+  return requestApi<DetectionSearchResponse>("/api/v1/detections/search/batch", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ assetIds })
+  });
+}
+
 export function fetchDetectionJob(jobId: string) {
   return requestApi<DetectionSearchJob>(`/api/v1/detections/jobs/${jobId}`);
+}
+
+export function previewDetectionCompare(
+  referenceFile: File,
+  candidateFile: File,
+  threshold = 85,
+  watermarkKey = "hash-lab-demo-key"
+) {
+  const formData = new FormData();
+  formData.append("reference", referenceFile);
+  formData.append("candidate", candidateFile);
+  formData.append("threshold", String(threshold));
+  formData.append("watermarkKey", watermarkKey);
+
+  return requestApi<DetectionPreviewCompareResponse>("/api/v1/detections/preview-compare", {
+    method: "POST",
+    body: formData
+  });
 }
 
 export function createAsset(input: UploadAssetInput) {
