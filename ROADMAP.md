@@ -208,6 +208,7 @@
 - ✅ Platform-agnostic crawler interface shipped with YouTube and Reddit live collection paths
 - ✅ Repeatable synthetic benchmark and report flow for MVP demo validation
 - ✅ Dashboard detection UX enhancements shipped (filters, timeline, live status, false-positive report action, stats)
+- ✅ Visual hash-tracking lab shipped for edited image demos (crop, rotate, text, overlay)
 - ⚠️ Instagram/Facebook live connectors still pending
 
 **Status Update (2026-04-14):**
@@ -215,6 +216,7 @@
 - Hard-edit robustness improved materially (hard recall 83.33%).
 - Threshold sweep completed; operating threshold remains 85.
 - Detections dashboard now includes timeline and triage-ready reporting controls.
+- Hash Lab page now provides interactive edited-image tracking checks through a dedicated preview compare API.
 
 **Acceptance Criteria:** Can detect same sports image on 3+ different platforms (in progress)
 

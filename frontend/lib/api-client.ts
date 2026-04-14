@@ -110,6 +110,38 @@ export type DetectionSearchResponse = {
   job: DetectionSearchJob;
 };
 
+export type DetectionPreviewCompareResult = {
+  image_path: string;
+  algorithm: string;
+  status: "ok" | "error" | "skipped";
+  is_match: boolean;
+  similarity_score: number;
+  match_variant?: string;
+  width?: number;
+  height?: number;
+  error_code?: string;
+  error?: string;
+};
+
+export type DetectionPreviewCompareResponse = {
+  reference: {
+    fileName: string;
+    hash: string;
+    algorithm: string;
+  };
+  candidate: {
+    fileName: string;
+    hash: string;
+    algorithm: string;
+  };
+  comparison: {
+    algorithm: string;
+    threshold: number;
+    referenceVariants: string[];
+    result: DetectionPreviewCompareResult | null;
+  };
+};
+
 export type UploadAssetInput = {
   name: string;
   creator: string;
@@ -203,6 +235,18 @@ export function triggerBatchDetectionSearch(assetIds: string[]) {
 
 export function fetchDetectionJob(jobId: string) {
   return requestApi<DetectionSearchJob>(`/api/v1/detections/jobs/${jobId}`);
+}
+
+export function previewDetectionCompare(referenceFile: File, candidateFile: File, threshold = 85) {
+  const formData = new FormData();
+  formData.append("reference", referenceFile);
+  formData.append("candidate", candidateFile);
+  formData.append("threshold", String(threshold));
+
+  return requestApi<DetectionPreviewCompareResponse>("/api/v1/detections/preview-compare", {
+    method: "POST",
+    body: formData
+  });
 }
 
 export function createAsset(input: UploadAssetInput) {

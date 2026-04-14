@@ -1,9 +1,13 @@
 const express = require("express");
+const fs = require("fs/promises");
 const mongoose = require("mongoose");
 const { z } = require("zod");
 
 const { Asset, Detection } = require("../models");
 const { AppError } = require("../errors/app-error");
+const { uploadMedia } = require("../middleware/upload-media");
+const { compareImageBatch } = require("../services/detection.bridge");
+const { generateFingerprint } = require("../services/fingerprint.bridge");
 const {
   enqueueDetectionSearch,
   enqueueBatchDetectionSearch,
@@ -20,6 +24,10 @@ const listDetectionsQuerySchema = z.object({
 
 const batchDetectionSearchBodySchema = z.object({
   assetIds: z.array(z.string().trim().min(1)).min(1).max(25)
+});
+
+const previewCompareBodySchema = z.object({
+  threshold: z.coerce.number().int().min(0).max(100).default(85)
 });
 
 function parseOrThrow(schema, payload) {
@@ -40,6 +48,81 @@ function assertDatabaseConnected() {
     );
   }
 }
+
+async function safeUnlink(filePath) {
+  if (!filePath) {
+    return;
+  }
+
+  try {
+    await fs.unlink(filePath);
+  } catch (_error) {
+    // Best-effort cleanup only.
+  }
+}
+
+router.post(
+  "/preview-compare",
+  uploadMedia.fields([
+    { name: "reference", maxCount: 1 },
+    { name: "candidate", maxCount: 1 }
+  ]),
+  async (req, res, next) => {
+    let uploadedPaths = [];
+
+    try {
+      const files = req.files && typeof req.files === "object" ? req.files : {};
+      const referenceFile = Array.isArray(files.reference) ? files.reference[0] : null;
+      const candidateFile = Array.isArray(files.candidate) ? files.candidate[0] : null;
+
+      if (!referenceFile || !candidateFile) {
+        throw new AppError(
+          "Both reference and candidate images are required",
+          400,
+          "FILE_REQUIRED"
+        );
+      }
+
+      uploadedPaths = [referenceFile.path, candidateFile.path].filter(Boolean);
+
+      const { threshold } = parseOrThrow(previewCompareBodySchema, req.body);
+
+      const [referenceFingerprint, candidateFingerprint, comparison] = await Promise.all([
+        generateFingerprint(referenceFile.path),
+        generateFingerprint(candidateFile.path),
+        compareImageBatch(referenceFile.path, [candidateFile.path], threshold)
+      ]);
+
+      const firstResult = Array.isArray(comparison.results) ? comparison.results[0] : null;
+
+      res.status(200).json({
+        success: true,
+        data: {
+          reference: {
+            fileName: referenceFile.originalname,
+            hash: referenceFingerprint.hash,
+            algorithm: referenceFingerprint.algorithm
+          },
+          candidate: {
+            fileName: candidateFile.originalname,
+            hash: candidateFingerprint.hash,
+            algorithm: candidateFingerprint.algorithm
+          },
+          comparison: {
+            algorithm: comparison.algorithm,
+            threshold: comparison.threshold,
+            referenceVariants: comparison.reference?.variants || [],
+            result: firstResult
+          }
+        }
+      });
+    } catch (error) {
+      next(error);
+    } finally {
+      await Promise.all(uploadedPaths.map((filePath) => safeUnlink(filePath)));
+    }
+  }
+);
 
 router.post("/search/batch", async (req, res, next) => {
   try {

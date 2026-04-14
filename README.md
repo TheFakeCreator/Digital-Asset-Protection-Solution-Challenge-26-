@@ -140,6 +140,7 @@ pnpm run build
 - `POST /api/v1/assets/fingerprints/batch` - Recompute fingerprints for multiple assets
 - `POST /api/v1/detections/search/{assetId}` - Trigger queued detection search
 - `POST /api/v1/detections/search/batch` - Trigger queued detection for multiple assets
+- `POST /api/v1/detections/preview-compare` - Compare reference/candidate image pair for visual hash-tracking demo
 - `GET /api/v1/detections/jobs/{jobId}` - Get detection job status
 - `GET /api/v1/detections` - Get paginated detection results
 - `GET /api/v1/detections/{id}` - Get detection detail
@@ -166,6 +167,7 @@ pnpm run lint
 - `/` - Dashboard (asset overview)
 - `/upload` - Upload new sports media
 - `/detections` - Trigger detection runs and filter confidence-scored results
+- `/hash-lab` - Visual hash-tracking lab for edited image comparison (crop/rotate/overlay/text)
 
 ### Python Fingerprinting
 

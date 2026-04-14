@@ -213,6 +213,54 @@ Example response (200):
   }
 }
 
+## 6) Preview Compare (Visual Hash Lab)
+
+Endpoint: POST /api/v1/detections/preview-compare
+
+Request type: multipart/form-data
+
+Fields:
+- reference: image file (required)
+- candidate: image file (required)
+- threshold: integer 0-100 (optional, default 85)
+
+Behavior:
+- Runs immediate in-request comparison between two uploaded images.
+- Returns registration-style hashes (`phash`) for both files.
+- Returns detection matcher score and match decision using the crop-aware multi-hash matcher.
+- Uploaded preview files are cleaned up after processing.
+
+Example response (200):
+
+{
+  "success": true,
+  "data": {
+    "reference": {
+      "fileName": "reference.png",
+      "hash": "f0e18fc06bc1925a",
+      "algorithm": "phash"
+    },
+    "candidate": {
+      "fileName": "candidate.png",
+      "hash": "f0e10f806bc39258",
+      "algorithm": "phash"
+    },
+    "comparison": {
+      "algorithm": "multihash-v1",
+      "threshold": 85,
+      "referenceVariants": ["bottom_left", "bottom_right", "center", "full", "top_left", "top_right"],
+      "result": {
+        "image_path": "...",
+        "algorithm": "multihash-v1",
+        "status": "ok",
+        "is_match": true,
+        "similarity_score": 89,
+        "match_variant": "full:center"
+      }
+    }
+  }
+}
+
 ## Common Error Codes
 
 - INVALID_ASSET_ID (400): malformed asset ID
