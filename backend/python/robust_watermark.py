@@ -24,6 +24,8 @@ DEFAULT_PARITY_BYTES = 32
 DEFAULT_FRAME_SAMPLE_SECONDS = 1.0
 DEFAULT_MAX_FRAMES = 120
 DEFAULT_REPETITIONS = 6
+DEFAULT_KEY = "hash-lab-demo-key"
+DEFAULT_CROP_FACTOR = 0.9
 MID_FREQUENCY_COORDS = [
     (1, 2),
     (2, 1),
@@ -146,6 +148,34 @@ def _normalize_frame(frame: np.ndarray) -> np.ndarray:
     return resized.astype(np.uint8)
 
 
+def _build_frame_variants(gray_frame: np.ndarray) -> list[np.ndarray]:
+    height, width = gray_frame.shape
+
+    crop_width = max(BLOCK_SIZE * 2, int(width * DEFAULT_CROP_FACTOR))
+    crop_height = max(BLOCK_SIZE * 2, int(height * DEFAULT_CROP_FACTOR))
+    x_offset = max(0, width - crop_width)
+    y_offset = max(0, height - crop_height)
+    center_x = max(0, (width - crop_width) // 2)
+    center_y = max(0, (height - crop_height) // 2)
+
+    boxes = [
+        (0, 0, width, height),
+        (center_x, center_y, center_x + crop_width, center_y + crop_height),
+        (0, 0, crop_width, crop_height),
+        (x_offset, 0, x_offset + crop_width, crop_height),
+        (0, y_offset, crop_width, y_offset + crop_height),
+        (x_offset, y_offset, x_offset + crop_width, y_offset + crop_height),
+    ]
+
+    variants: list[np.ndarray] = []
+    for left, top, right, bottom in boxes:
+        if right <= left or bottom <= top:
+            continue
+        variants.append(gray_frame[top:bottom, left:right])
+
+    return variants if variants else [gray_frame]
+
+
 def _iter_video_frames(path: str, frame_sample_seconds: float, max_frames: int) -> Iterable[np.ndarray]:
     capture = cv2.VideoCapture(path)
     if not capture.isOpened():
@@ -261,6 +291,98 @@ def _extract_soft_bits_from_frame(
     return soft_scores, frame_confidence
 
 
+def _extract_soft_bits_with_variants(
+    frame: np.ndarray,
+    key: str,
+    encoded_bit_count: int,
+    repetitions: int,
+    frame_seed_index: int,
+) -> tuple[np.ndarray, float]:
+    candidates: list[tuple[np.ndarray, float]] = []
+
+    for variant_index, variant_frame in enumerate(_build_frame_variants(frame)):
+        for rotation_index, _rotation in enumerate(ROTATIONS):
+            rotated = np.rot90(variant_frame, rotation_index)
+            try:
+                soft_scores, confidence = _extract_soft_bits_from_frame(
+                    rotated,
+                    key,
+                    encoded_bit_count,
+                    repetitions,
+                    frame_seed_index=(frame_seed_index * 10000) + (variant_index * 100) + rotation_index,
+                )
+                candidates.append((soft_scores, max(confidence, 1e-6)))
+            except Exception:
+                continue
+
+    if not candidates:
+        raise ValueError("Unable to extract soft bits from frame variants")
+
+    candidates.sort(key=lambda item: item[1], reverse=True)
+    top_candidates = candidates[: min(4, len(candidates))]
+
+    stacked = np.stack([entry[0] for entry in top_candidates])
+    weights = np.array([entry[1] for entry in top_candidates], dtype=np.float32)
+    if float(np.sum(weights)) <= 0:
+        weights = np.ones_like(weights)
+
+    aggregated_soft = np.average(stacked, axis=0, weights=weights)
+    confidence = float(np.mean(np.abs(aggregated_soft)))
+    return aggregated_soft, confidence
+
+
+def _recover_bits_from_media(
+    frames: list[np.ndarray],
+    key: str,
+    codec: "_ECCCodec",
+    repetitions: int,
+) -> tuple[np.ndarray, np.ndarray, float, float, int]:
+    encoded_bit_count = codec.encoded_bits
+    frame_soft_scores: list[np.ndarray] = []
+    frame_confidences: list[float] = []
+
+    for index, frame in enumerate(frames):
+        try:
+            soft_scores, confidence = _extract_soft_bits_with_variants(
+                frame,
+                key,
+                encoded_bit_count,
+                max(1, repetitions),
+                frame_seed_index=index,
+            )
+            frame_soft_scores.append(soft_scores)
+            frame_confidences.append(max(confidence, 1e-6))
+        except Exception:
+            continue
+
+    frames_used = len(frame_soft_scores)
+    if frames_used == 0:
+        raise ValueError("No usable media frames for robust fingerprint recovery")
+
+    stacked_scores = np.stack(frame_soft_scores)
+    weights = np.array(frame_confidences, dtype=np.float32)
+    if float(np.sum(weights)) <= 0:
+        weights = np.ones_like(weights)
+
+    aggregated_soft = np.average(stacked_scores, axis=0, weights=weights)
+    estimated_bits = (aggregated_soft >= 0).astype(np.uint8)
+
+    decoded = codec.decode_bits(estimated_bits)
+    recovered_bits = decoded.bits[:HASH_BITS]
+
+    compared_length = min(len(estimated_bits), len(decoded.reencoded_bits))
+    mismatches = int(np.count_nonzero(estimated_bits[:compared_length] != decoded.reencoded_bits[:compared_length]))
+    bit_error_rate = float(mismatches / max(1, compared_length))
+
+    signal_strength = float(np.mean(np.abs(aggregated_soft)))
+    confidence = signal_strength * (1.0 - bit_error_rate)
+    if decoded.success:
+        confidence += 0.15
+    confidence = _clamp(confidence, 0.0, 1.0)
+
+    return recovered_bits, decoded.reencoded_bits, confidence, bit_error_rate, frames_used
+
+
 def _best_rotation_soft_bits(
     frame: np.ndarray,
     key: str,
@@ -304,25 +426,36 @@ def _media_digest(frames: list[np.ndarray]) -> bytes:
 
 def generate_fingerprint(
     image_or_video: str | np.ndarray,
+    key: str = DEFAULT_KEY,
     frame_sample_seconds: float = DEFAULT_FRAME_SAMPLE_SECONDS,
     max_frames: int = DEFAULT_MAX_FRAMES,
     parity_bytes: int = DEFAULT_PARITY_BYTES,
+    repetitions: int = DEFAULT_REPETITIONS,
 ) -> dict:
-    """Generate robust fingerprint and ECC bitstream from image/video media."""
-    frames = _load_media_frames(image_or_video, frame_sample_seconds, max_frames)
-    digest = _media_digest(frames)
-    bits = _bytes_to_bits(digest)
+    """Generate a robust keyed fingerprint from media using the same recovery path as detection."""
+    if not key:
+        raise ValueError("Generation key must be provided")
 
+    frames = _load_media_frames(image_or_video, frame_sample_seconds, max_frames)
     codec = _ECCCodec(parity_bytes=parity_bytes)
-    encoded_bits = codec.encode_bits(bits)
+    recovered_bits, reencoded_bits, confidence, bit_error_rate, frames_used = _recover_bits_from_media(
+        frames,
+        key,
+        codec,
+        repetitions,
+    )
+
+    digest = _bits_to_bytes(recovered_bits)
 
     return {
         "fingerprint_hex": digest.hex(),
-        "fingerprint_bits": bits.astype(int).tolist(),
-        "ecc_bits": encoded_bits.astype(int).tolist(),
-        "frames_used": len(frames),
+        "fingerprint_bits": recovered_bits.astype(int).tolist(),
+        "ecc_bits": reencoded_bits.astype(int).tolist(),
+        "frames_used": frames_used,
         "ecc_scheme": "reed-solomon" if codec._use_rs else "repeat-2-fallback",
         "encoded_bit_length": int(codec.encoded_bits),
+        "confidence": round(confidence, 4),
+        "bit_error_rate": round(bit_error_rate, 4),
     }
 
 
@@ -339,57 +472,14 @@ def detect_fingerprint(
         raise ValueError("Detection key must be provided")
 
     codec = _ECCCodec(parity_bytes=parity_bytes)
-    encoded_bit_count = codec.encoded_bits
     frames = _load_media_frames(image_or_video, frame_sample_seconds, max_frames)
-
-    frame_soft_scores: list[np.ndarray] = []
-    frame_confidences: list[float] = []
-
-    for index, frame in enumerate(frames):
-        try:
-            soft_scores, confidence = _best_rotation_soft_bits(
-                frame,
-                key,
-                encoded_bit_count,
-                max(1, repetitions),
-                frame_seed_index=index,
-            )
-            frame_soft_scores.append(soft_scores)
-            frame_confidences.append(max(confidence, 1e-6))
-        except Exception:
-            # Skip corrupted frames and continue temporal aggregation.
-            continue
-
-    frames_used = len(frame_soft_scores)
-    if frames_used == 0:
-        return {
-            "fingerprint": "",
-            "confidence": 0.0,
-            "bit_error_rate": 1.0,
-            "frames_used": 0,
-        }
-
-    stacked_scores = np.stack(frame_soft_scores)
-    weights = np.array(frame_confidences, dtype=np.float32)
-    if float(np.sum(weights)) <= 0:
-        weights = np.ones_like(weights)
-
-    aggregated_soft = np.average(stacked_scores, axis=0, weights=weights)
-    estimated_bits = (aggregated_soft >= 0).astype(np.uint8)
-
-    decoded = codec.decode_bits(estimated_bits)
-    recovered_bits = decoded.bits[:HASH_BITS]
+    recovered_bits, _reencoded_bits, confidence, bit_error_rate, frames_used = _recover_bits_from_media(
+        frames,
+        key,
+        codec,
+        repetitions,
+    )
     recovered_hex = _bits_to_bytes(recovered_bits).hex()
-
-    compared_length = min(len(estimated_bits), len(decoded.reencoded_bits))
-    mismatches = int(np.count_nonzero(estimated_bits[:compared_length] != decoded.reencoded_bits[:compared_length]))
-    bit_error_rate = float(mismatches / max(1, compared_length))
-
-    signal_strength = float(np.mean(np.abs(aggregated_soft)))
-    confidence = signal_strength * (1.0 - bit_error_rate)
-    if decoded.success:
-        confidence += 0.15
-    confidence = _clamp(confidence, 0.0, 1.0)
 
     return {
         "fingerprint": recovered_hex,
@@ -405,9 +495,11 @@ def _build_cli_parser() -> argparse.ArgumentParser:
 
     generate_parser = subparsers.add_parser("generate", help="Generate fingerprint and ECC payload")
     generate_parser.add_argument("input_path", help="Path to image or video")
+    generate_parser.add_argument("--key", default=DEFAULT_KEY, help="Secret key used for keyed fingerprint extraction")
     generate_parser.add_argument("--frame-sample-seconds", type=float, default=DEFAULT_FRAME_SAMPLE_SECONDS)
     generate_parser.add_argument("--max-frames", type=int, default=DEFAULT_MAX_FRAMES)
     generate_parser.add_argument("--parity-bytes", type=int, default=DEFAULT_PARITY_BYTES)
+    generate_parser.add_argument("--repetitions", type=int, default=DEFAULT_REPETITIONS)
 
     detect_parser = subparsers.add_parser("detect", help="Detect and recover fingerprint")
     detect_parser.add_argument("input_path", help="Path to image or video")
@@ -428,9 +520,11 @@ def main() -> int:
         if args.mode == "generate":
             payload = generate_fingerprint(
                 args.input_path,
+                key=args.key,
                 frame_sample_seconds=args.frame_sample_seconds,
                 max_frames=args.max_frames,
                 parity_bytes=args.parity_bytes,
+                repetitions=args.repetitions,
             )
         else:
             payload = detect_fingerprint(

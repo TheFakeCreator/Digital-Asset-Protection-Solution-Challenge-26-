@@ -167,7 +167,7 @@ pnpm run lint
 - `/` - Dashboard (asset overview)
 - `/upload` - Upload new sports media
 - `/detections` - Trigger detection runs and filter confidence-scored results
-- `/hash-lab` - Visual side-by-side lab for edited image comparison (perceptual hash vs robust watermark recovery)
+- `/hash-lab` - Visual side-by-side lab for edited image comparison with progressive hard-stress presets, effectiveness-vs-hardness graph, and explainability panel (perceptual hash vs robust watermark recovery)
 
 ### Python Fingerprinting
 
@@ -185,6 +185,8 @@ python batch_fingerprint_service.py path/to/image1.jpg path/to/image2.jpg
 
 # Compare one reference image against multiple candidate images
 python detection_service.py --reference path/to/reference.jpg path/to/candidate1.jpg path/to/candidate2.jpg
+
+# Detection service auto-normalizes dimensions (tiny and very large images are handled without manual resize)
 
 # Run crawler service for all supported platforms (offline-safe)
 python crawler_service.py --platform all --keywords sports athletic football basketball olympics --limit 120 --no-live-fetch --output-dir ../data/crawled

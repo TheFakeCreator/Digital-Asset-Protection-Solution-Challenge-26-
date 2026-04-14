@@ -165,7 +165,12 @@ def build_parser():
         help="Output directory for generated benchmark assets and reports",
     )
     parser.add_argument("--threshold", type=int, default=DEFAULT_THRESHOLD, help="Detection threshold (0-100)")
-    parser.add_argument("--min-size", type=int, default=DEFAULT_MIN_SIZE, help="Minimum image size in pixels")
+    parser.add_argument(
+        "--min-size",
+        type=int,
+        default=DEFAULT_MIN_SIZE,
+        help="Minimum edge hint in pixels for geometric normalization",
+    )
     parser.add_argument("--max-assets", type=int, default=6, help="Maximum fixture assets to benchmark")
     parser.add_argument(
         "--synthetic-negatives",

@@ -30,7 +30,7 @@ Behavior:
 - Returns 202 Accepted immediately
 - Enqueues a background detection job
 - Job compares reference asset against candidate images using `python/detection_service.py`
-- Detection matcher uses a crop-aware multi-hash profile (`phash`, `dhash`, `whash`, `ahash`) for stronger robustness to compression and moderate cropping
+- Detection matcher uses a hybrid profile: crop-aware multi-hash (`phash`, `dhash`, `whash`, `ahash`) plus geometric verification (ORB + RANSAC with small-angle search) to recover cropped, rotated, and overlaid edits
 - Similarity score is 0-100; matches are flagged when score >= `DETECTION_SIMILARITY_THRESHOLD` (default 85, tuned via synthetic benchmark sweep)
 - Candidate pool is sourced from crawler manifest (`backend/data/crawled/twitter/latest.json`) when available
 - Python comparison responses are cached (`DETECTION_CACHE_TTL_SECONDS`) to reduce repeated work
@@ -248,15 +248,21 @@ Example response (200):
       "algorithm": "phash"
     },
     "comparison": {
-      "algorithm": "multihash-v1",
+      "algorithm": "multihash-v2-hybrid",
       "threshold": 85,
       "referenceVariants": ["bottom_left", "bottom_right", "center", "full", "top_left", "top_right"],
       "result": {
         "image_path": "...",
-        "algorithm": "multihash-v1",
+        "algorithm": "multihash-v2-hybrid",
         "status": "ok",
         "is_match": true,
         "similarity_score": 89,
+        "hash_similarity_score": 76,
+        "geometric_similarity_score": 90,
+        "geometric_good_matches": 31,
+        "geometric_inliers": 15,
+        "geometric_status": "ok",
+        "match_method": "geometric",
         "match_variant": "full:center"
       }
     },
@@ -289,7 +295,7 @@ Example response (200):
 `detection_service.py` applies these rules during batch comparison:
 
 - Corrupted candidate files are marked with `status=error`, `error_code=CORRUPTED_IMAGE`
-- Very small candidate files (below minimum size) are marked with `status=skipped`, `error_code=IMAGE_TOO_SMALL`
+- Candidate images are auto-normalized across dimensions (tiny images are upscaled; very large images are downscaled for stable matching)
 - Missing files are marked with `status=error`, `error_code=FILE_NOT_FOUND`
 
 Non-`ok` candidate items are ignored when persisting detection records.

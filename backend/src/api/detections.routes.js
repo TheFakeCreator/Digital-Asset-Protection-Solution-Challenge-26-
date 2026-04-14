@@ -143,7 +143,7 @@ router.post(
         generateFingerprint(referenceFile.path),
         generateFingerprint(candidateFile.path),
         compareImageBatch(referenceFile.path, [candidateFile.path], threshold),
-        generateWatermarkFingerprint(referenceFile.path),
+        generateWatermarkFingerprint(referenceFile.path, watermarkKey),
         detectWatermarkFingerprint(candidateFile.path, watermarkKey)
       ]);
 

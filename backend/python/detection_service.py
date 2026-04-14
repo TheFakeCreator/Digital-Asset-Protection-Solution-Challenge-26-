@@ -6,11 +6,27 @@ import sys
 from PIL import Image, ImageOps, UnidentifiedImageError
 import imagehash
 
+try:
+    import cv2
+    import numpy as np
+except Exception:  # pragma: no cover - optional fallback
+    cv2 = None
+    np = None
 
-ALGORITHM = "multihash-v1"
+
+ALGORITHM = "multihash-v2-hybrid"
 DEFAULT_THRESHOLD = 85
-DEFAULT_MIN_SIZE = 16
+DEFAULT_MIN_SIZE = 1
 DEFAULT_CROP_FACTOR = 0.92
+HASH_MIN_EDGE = 64
+HASH_MAX_EDGE = 2048
+GEOMETRIC_MIN_EDGE = 96
+GEOMETRIC_MAX_EDGE = 1600
+GEOMETRIC_MATCH_RATIO_SCALE = 8.0
+GEOMETRIC_MIN_GOOD_MATCHES = 10
+GEOMETRIC_MIN_INLIERS = 8
+GEOMETRIC_RATIO_TEST = 0.8
+GEOMETRIC_ROTATION_ANGLES = [0, -12, -9, -6, -3, 3, 6, 9, 12]
 VARIANT_PAIRINGS = [
     ("full", "full"),
     ("full", "center"),
@@ -46,7 +62,7 @@ def build_parser():
         "--min-size",
         type=int,
         default=DEFAULT_MIN_SIZE,
-        help="Minimum width and height in pixels",
+        help="Minimum edge hint in pixels for geometric normalization",
     )
     parser.add_argument("candidate_paths", nargs="+", help="Candidate image paths")
     return parser
@@ -56,15 +72,76 @@ def clamp_similarity(value):
     return max(0, min(100, int(round(value))))
 
 
+def _pil_lanczos_filter():
+    if hasattr(Image, "Resampling"):
+        return Image.Resampling.LANCZOS
+    return Image.LANCZOS
+
+
+def resize_pil_by_limits(image, min_edge, max_edge):
+    width, height = image.size
+    if width < 1 or height < 1:
+        return image
+
+    scale = 1.0
+    smallest_edge = min(width, height)
+    largest_edge = max(width, height)
+
+    if smallest_edge < min_edge:
+        scale = min_edge / float(smallest_edge)
+
+    if largest_edge * scale > max_edge:
+        scale = max_edge / float(largest_edge)
+
+    if abs(scale - 1.0) < 0.01:
+        return image
+
+    resized_width = max(1, int(round(width * scale)))
+    resized_height = max(1, int(round(height * scale)))
+    return image.resize((resized_width, resized_height), _pil_lanczos_filter())
+
+
+def resize_gray_by_limits(image, min_edge, max_edge):
+    if cv2 is None:
+        return image
+
+    height, width = image.shape[:2]
+    if width < 1 or height < 1:
+        return image
+
+    scale = 1.0
+    smallest_edge = min(width, height)
+    largest_edge = max(width, height)
+
+    if smallest_edge < min_edge:
+        scale = min_edge / float(smallest_edge)
+
+    if largest_edge * scale > max_edge:
+        scale = max_edge / float(largest_edge)
+
+    if abs(scale - 1.0) < 0.01:
+        return image
+
+    resized_width = max(1, int(round(width * scale)))
+    resized_height = max(1, int(round(height * scale)))
+    interpolation = cv2.INTER_CUBIC if scale > 1.0 else cv2.INTER_AREA
+    return cv2.resize(image, (resized_width, resized_height), interpolation=interpolation)
+
+
 def normalize_image(image):
-    return ImageOps.autocontrast(image.convert("RGB"))
+    # Flatten alpha so transparent-pixel RGB noise does not distort perceptual hashes.
+    prepared = ImageOps.exif_transpose(image).convert("RGBA")
+    background = Image.new("RGBA", prepared.size, (255, 255, 255, 255))
+    flattened = Image.alpha_composite(background, prepared).convert("RGB")
+    normalized = ImageOps.autocontrast(flattened)
+    return resize_pil_by_limits(normalized, HASH_MIN_EDGE, HASH_MAX_EDGE)
 
 
 def build_variants(image):
     width, height = image.size
 
-    crop_width = max(2, int(width * DEFAULT_CROP_FACTOR))
-    crop_height = max(2, int(height * DEFAULT_CROP_FACTOR))
+    crop_width = max(1, min(width, int(round(width * DEFAULT_CROP_FACTOR))))
+    crop_height = max(1, min(height, int(round(height * DEFAULT_CROP_FACTOR))))
     x_offset = max(0, width - crop_width)
     y_offset = max(0, height - crop_height)
     center_x = max(0, (width - crop_width) // 2)
@@ -109,14 +186,6 @@ def compute_image_hash(image_path, min_size):
     try:
         with Image.open(image_path) as image:
             width, height = image.size
-            if width < min_size or height < min_size:
-                return {
-                    "status": "skipped",
-                    "error_code": "IMAGE_TOO_SMALL",
-                    "error": f"Image is too small: {width}x{height} (min {min_size}x{min_size})",
-                    "width": width,
-                    "height": height,
-                }
 
             normalized = normalize_image(image)
             variants = build_variants(normalized)
@@ -189,6 +258,119 @@ def similarity_score(reference_hashes, candidate_hashes):
     return clamp_similarity(best_score), best_pairing
 
 
+def compute_geometric_similarity(reference_path, candidate_path, min_size):
+    if cv2 is None or np is None:
+        return {
+            "score": 0,
+            "good_matches": 0,
+            "inliers": 0,
+            "status": "unavailable",
+        }
+
+    reference = cv2.imread(reference_path, cv2.IMREAD_GRAYSCALE)
+    candidate_original = cv2.imread(candidate_path, cv2.IMREAD_GRAYSCALE)
+
+    if reference is None or candidate_original is None:
+        return {
+            "score": 0,
+            "good_matches": 0,
+            "inliers": 0,
+            "status": "decode_error",
+        }
+
+    reference = cv2.equalizeHist(reference)
+    candidate_original = cv2.equalizeHist(candidate_original)
+
+    target_min_edge = max(int(min_size or 1), GEOMETRIC_MIN_EDGE)
+    reference = resize_gray_by_limits(reference, target_min_edge, GEOMETRIC_MAX_EDGE)
+    candidate_original = resize_gray_by_limits(candidate_original, target_min_edge, GEOMETRIC_MAX_EDGE)
+
+    orb = cv2.ORB_create(nfeatures=1800, fastThreshold=12)
+    ref_keypoints, ref_descriptors = orb.detectAndCompute(reference, None)
+
+    if ref_descriptors is None:
+        return {
+            "score": 0,
+            "good_matches": 0,
+            "inliers": 0,
+            "status": "reference_no_descriptors",
+        }
+
+    if len(ref_keypoints) < GEOMETRIC_MIN_GOOD_MATCHES:
+        return {
+            "score": 0,
+            "good_matches": 0,
+            "inliers": 0,
+            "status": "reference_insufficient_keypoints",
+        }
+
+    matcher = cv2.BFMatcher(cv2.NORM_HAMMING)
+    best_result = {
+        "score": 0,
+        "good_matches": 0,
+        "inliers": 0,
+        "status": "no_descriptors",
+    }
+
+    height, width = candidate_original.shape
+
+    for angle in GEOMETRIC_ROTATION_ANGLES:
+        if angle == 0:
+            candidate_view = candidate_original
+        else:
+            matrix = cv2.getRotationMatrix2D((width / 2, height / 2), angle, 1.0)
+            candidate_view = cv2.warpAffine(
+                candidate_original,
+                matrix,
+                (width, height),
+                flags=cv2.INTER_LINEAR,
+                borderMode=cv2.BORDER_REFLECT,
+            )
+
+        cand_keypoints, cand_descriptors = orb.detectAndCompute(candidate_view, None)
+        if cand_descriptors is None or len(cand_keypoints) < GEOMETRIC_MIN_GOOD_MATCHES:
+            continue
+
+        knn_matches = matcher.knnMatch(ref_descriptors, cand_descriptors, k=2)
+        good_matches = []
+        for pair in knn_matches:
+            if len(pair) < 2:
+                continue
+
+            first, second = pair
+            if first.distance < GEOMETRIC_RATIO_TEST * second.distance:
+                good_matches.append(first)
+
+        if len(good_matches) < GEOMETRIC_MIN_GOOD_MATCHES:
+            continue
+
+        source_points = np.float32([ref_keypoints[match.queryIdx].pt for match in good_matches]).reshape(-1, 1, 2)
+        destination_points = np.float32([cand_keypoints[match.trainIdx].pt for match in good_matches]).reshape(-1, 1, 2)
+
+        _homography, inlier_mask = cv2.findHomography(source_points, destination_points, cv2.RANSAC, 5.0)
+        inliers = int(inlier_mask.sum()) if inlier_mask is not None else 0
+
+        inlier_ratio = inliers / max(1, len(good_matches))
+        match_ratio = len(good_matches) / max(1, min(len(ref_keypoints), len(cand_keypoints)))
+        normalized_match_ratio = min(1.0, match_ratio * GEOMETRIC_MATCH_RATIO_SCALE)
+
+        if inliers < GEOMETRIC_MIN_INLIERS:
+            normalized_match_ratio *= 0.7
+
+        score = (0.8 * normalized_match_ratio) + (0.2 * inlier_ratio)
+        score_int = clamp_similarity(score * 100)
+
+        if score_int > best_result["score"]:
+            best_result = {
+                "score": score_int,
+                "good_matches": len(good_matches),
+                "inliers": inliers,
+                "status": "ok",
+            }
+
+    return best_result
+
+
 def compare_batch(reference_path, candidate_paths, threshold, min_size):
     reference = compute_image_hash(reference_path, min_size)
     if reference["status"] != "ok":
@@ -215,12 +397,40 @@ def compare_batch(reference_path, candidate_paths, threshold, min_size):
             results.append(result)
             continue
 
-        score, matched_variant = similarity_score(reference["hashes"], candidate["hashes"])
+        hash_score, matched_variant = similarity_score(reference["hashes"], candidate["hashes"])
+
+        should_run_geometric = hash_score < threshold and hash_score >= max(25, threshold - 50)
+        if should_run_geometric:
+            geometric = compute_geometric_similarity(reference_path, candidate_path, min_size)
+        else:
+            geometric = {
+                "score": 0,
+                "good_matches": 0,
+                "inliers": 0,
+                "status": "skipped",
+            }
+
+        geometric_score = geometric["score"]
+
+        final_score = max(hash_score, geometric_score)
+        if geometric_score > hash_score:
+            match_method = "geometric"
+        elif hash_score > 0:
+            match_method = "hash"
+        else:
+            match_method = "none"
+
         result.update(
             {
                 "status": "ok",
-                "similarity_score": score,
-                "is_match": score >= threshold,
+                "similarity_score": final_score,
+                "hash_similarity_score": hash_score,
+                "geometric_similarity_score": geometric_score,
+                "geometric_good_matches": geometric["good_matches"],
+                "geometric_inliers": geometric["inliers"],
+                "geometric_status": geometric["status"],
+                "match_method": match_method,
+                "is_match": final_score >= threshold,
                 "match_variant": matched_variant,
                 "width": candidate["width"],
                 "height": candidate["height"],

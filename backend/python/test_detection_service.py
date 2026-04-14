@@ -68,7 +68,7 @@ class DetectionServiceTests(unittest.TestCase):
     def test_batch_matching_and_score_generation(self):
         payload = self.run_service(self.same_copy, self.different)
 
-        self.assertEqual(payload["algorithm"], "phash")
+        self.assertEqual(payload["algorithm"], "multihash-v2-hybrid")
         self.assertEqual(payload["count"], 2)
 
         first = payload["results"][0]
@@ -81,14 +81,16 @@ class DetectionServiceTests(unittest.TestCase):
         self.assertEqual(second["status"], "ok")
         self.assertLessEqual(second["similarity_score"], 100)
 
-    def test_small_and_corrupted_images_are_handled(self):
+    def test_tiny_and_corrupted_images_are_handled(self):
         payload = self.run_service(self.too_small, self.corrupted)
 
         small_result = payload["results"][0]
         corrupted_result = payload["results"][1]
 
-        self.assertEqual(small_result["status"], "skipped")
-        self.assertEqual(small_result["error_code"], "IMAGE_TOO_SMALL")
+        self.assertEqual(small_result["status"], "ok")
+        self.assertIn("similarity_score", small_result)
+        self.assertGreaterEqual(small_result["similarity_score"], 0)
+        self.assertLessEqual(small_result["similarity_score"], 100)
 
         self.assertEqual(corrupted_result["status"], "error")
         self.assertEqual(corrupted_result["error_code"], "CORRUPTED_IMAGE")

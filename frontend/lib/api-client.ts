@@ -116,6 +116,12 @@ export type DetectionPreviewCompareResult = {
   status: "ok" | "error" | "skipped";
   is_match: boolean;
   similarity_score: number;
+  hash_similarity_score?: number;
+  geometric_similarity_score?: number;
+  geometric_good_matches?: number;
+  geometric_inliers?: number;
+  geometric_status?: string;
+  match_method?: "hash" | "geometric" | "none";
   match_variant?: string;
   width?: number;
   height?: number;

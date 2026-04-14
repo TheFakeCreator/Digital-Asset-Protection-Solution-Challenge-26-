@@ -84,7 +84,7 @@ function runWatermarkWithCandidate(candidate, mode, mediaPath, key, timeoutMs) {
     const scriptPath = resolveWatermarkScript();
     const args = [...candidate.prefixArgs, scriptPath, mode, mediaPath];
 
-    if (mode === "detect") {
+    if (mode === "detect" || mode === "generate") {
       args.push("--key", key);
     }
 
@@ -180,8 +180,8 @@ async function runWatermark(mode, mediaPath, key = "") {
   );
 }
 
-async function generateWatermarkFingerprint(mediaPath) {
-  return runWatermark("generate", mediaPath);
+async function generateWatermarkFingerprint(mediaPath, key = "hash-lab-demo-key") {
+  return runWatermark("generate", mediaPath, key);
 }
 
 async function detectWatermarkFingerprint(mediaPath, key) {

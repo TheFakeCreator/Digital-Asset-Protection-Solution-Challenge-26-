@@ -215,9 +215,14 @@
 - Synthetic benchmark gate PASS after matcher upgrade (core recall 89.58%, false positive rate 0.0%).
 - Hard-edit robustness improved materially (hard recall 83.33%).
 - Threshold sweep completed; operating threshold remains 85.
+- Matcher upgraded to `multihash-v2-hybrid` with geometric fallback for near-threshold crop/rotation/overlay edits.
 - Detections dashboard now includes timeline and triage-ready reporting controls.
 - Hash Lab page now provides interactive edited-image tracking checks through a dedicated preview compare API.
 - Hash Lab now compares two methods side-by-side: perceptual hash matching vs robust watermark recovery.
+- Hash Lab now includes a one-click preset stress benchmark table for crop/rotate/overlay regression checks.
+- Hash Lab now includes an explainability panel showing noise recipe and live detection decision steps.
+- Detection matcher now auto-normalizes tiny and very large images, so dimension extremes are accepted without manual resizing.
+- Hash Lab preset stress check now includes a larger progressive hard-edit ladder and a built-in effectiveness-vs-hardness graph.
 
 **Acceptance Criteria:** Can detect same sports image on 3+ different platforms (in progress)
 
