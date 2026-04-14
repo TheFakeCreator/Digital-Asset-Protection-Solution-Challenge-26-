@@ -1,0 +1,57 @@
+services:
+  - type: web
+    name: digital-asset-protection-backend
+    env: docker
+    branch: main
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    autoDeploy: true
+    healthCheckPath: /api/v1/health
+    plan: starter
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: CORS_ORIGIN
+        sync: false
+      - key: MONGODB_URI
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: MAX_UPLOAD_SIZE_MB
+        value: "10"
+      - key: UPLOAD_DIR
+        value: /tmp/uploads
+      - key: PYTHON_EXECUTABLE
+        value: python3
+      - key: PYTHON_FINGERPRINT_SCRIPT
+        value: python/fingerprint_service.py
+      - key: PYTHON_DETECTION_SCRIPT
+        value: python/detection_service.py
+      - key: PYTHON_WATERMARK_SCRIPT
+        value: python/robust_watermark.py
+      - key: PYTHON_BRIDGE_TIMEOUT_MS
+        value: "30000"
+      - key: DETECTION_SIMILARITY_THRESHOLD
+        value: "85"
+      - key: DETECTION_CACHE_TTL_SECONDS
+        value: "900"
+      - key: DETECTION_MAX_PENDING_JOBS
+        value: "100"
+      - key: DETECTION_BATCH_CONCURRENCY
+        value: "3"
+      - key: X_BEARER_TOKEN
+        sync: false
+      - key: YOUTUBE_API_KEY
+        sync: false
+      - key: REDDIT_CLIENT_ID
+        sync: false
+      - key: REDDIT_CLIENT_SECRET
+        sync: false
+      - key: REDDIT_USER_AGENT
+        value: SolutionChallengeCrawler/1.0
+      - key: META_APP_ID
+        sync: false
+      - key: META_APP_SECRET
+        sync: false
+      - key: META_ACCESS_TOKEN
+        sync: false
