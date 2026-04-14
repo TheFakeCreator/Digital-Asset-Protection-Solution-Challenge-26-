@@ -197,23 +197,24 @@
 - [ ] Crawler can now handle ~1000 images in crawl cycle
 
 **Person 4: Dashboard Enhancements**
-- [ ] Add platform filter to detection results
-- [ ] Show detection timeline (when each copy found)
-- [ ] Add "Report" button for false positives
-- [ ] Implement real-time detection status (running/completed)
-- [ ] Add simple statistics (total assets, total detections, platforms monitored)
+- [x] Add platform filter to detection results
+- [x] Show detection timeline (when each copy found)
+- [x] Add "Report" button for false positives
+- [x] Implement real-time detection status (running/completed)
+- [x] Add simple statistics (total assets, total detections, platforms monitored)
 
 #### End of Day Deliverables
 - ✅ Backend optimization shipped: cache, dedupe, history tracking, and batch detection search flow
 - ✅ Platform-agnostic crawler interface shipped with YouTube and Reddit live collection paths
 - ✅ Repeatable synthetic benchmark and report flow for MVP demo validation
+- ✅ Dashboard detection UX enhancements shipped (filters, timeline, live status, false-positive report action, stats)
 - ⚠️ Instagram/Facebook live connectors still pending
-- ⚠️ Dashboard multi-platform enhancements still pending
 
 **Status Update (2026-04-14):**
 - Synthetic benchmark gate PASS after matcher upgrade (core recall 89.58%, false positive rate 0.0%).
 - Hard-edit robustness improved materially (hard recall 83.33%).
 - Threshold sweep completed; operating threshold remains 85.
+- Detections dashboard now includes timeline and triage-ready reporting controls.
 
 **Acceptance Criteria:** Can detect same sports image on 3+ different platforms (in progress)
 
