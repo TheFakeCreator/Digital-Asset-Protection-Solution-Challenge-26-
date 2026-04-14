@@ -32,7 +32,8 @@ const batchDetectionSearchBodySchema = z.object({
 
 const previewCompareBodySchema = z.object({
   threshold: z.coerce.number().int().min(0).max(100).default(85),
-  watermarkKey: z.string().trim().min(1).max(128).default("hash-lab-demo-key")
+  watermarkKey: z.string().trim().min(1).max(128).default("hash-lab-demo-key"),
+  includeWatermark: z.string().trim().optional().default("true")
 });
 
 function normalizeHexFingerprint(value) {
@@ -85,6 +86,25 @@ function parseOrThrow(schema, payload) {
   return parsed.data;
 }
 
+function parseBooleanFlag(rawValue, fallback = true) {
+  if (typeof rawValue === "boolean") {
+    return rawValue;
+  }
+
+  if (typeof rawValue === "string") {
+    const normalized = rawValue.trim().toLowerCase();
+    if (["true", "1", "yes", "on"].includes(normalized)) {
+      return true;
+    }
+
+    if (["false", "0", "no", "off"].includes(normalized)) {
+      return false;
+    }
+  }
+
+  return fallback;
+}
+
 function assertDatabaseConnected() {
   if (mongoose.connection.readyState !== 1) {
     throw new AppError(
@@ -131,28 +151,78 @@ router.post(
 
       uploadedPaths = [referenceFile.path, candidateFile.path].filter(Boolean);
 
-      const { threshold, watermarkKey } = parseOrThrow(previewCompareBodySchema, req.body);
+      const { threshold, watermarkKey, includeWatermark: includeWatermarkRaw } = parseOrThrow(
+        previewCompareBodySchema,
+        req.body
+      );
+      const includeWatermark = parseBooleanFlag(includeWatermarkRaw, true);
 
-      const [
-        referenceFingerprint,
-        candidateFingerprint,
-        comparison,
-        watermarkReference,
-        watermarkRecovered
-      ] = await Promise.all([
+      const [referenceFingerprint, candidateFingerprint, comparison] = await Promise.all([
         generateFingerprint(referenceFile.path),
         generateFingerprint(candidateFile.path),
-        compareImageBatch(referenceFile.path, [candidateFile.path], threshold),
-        generateWatermarkFingerprint(referenceFile.path, watermarkKey),
-        detectWatermarkFingerprint(candidateFile.path, watermarkKey)
+        compareImageBatch(referenceFile.path, [candidateFile.path], threshold)
       ]);
 
       const firstResult = Array.isArray(comparison.results) ? comparison.results[0] : null;
 
-      const watermarkCrossBitErrorRate = computeBitErrorRate(
-        watermarkReference.fingerprintHex,
-        watermarkRecovered.fingerprintHex
-      );
+      let watermarkComparison;
+      if (!includeWatermark) {
+        watermarkComparison = {
+          status: "skipped",
+          key: watermarkKey,
+          reason: "Watermark comparison disabled for this request."
+        };
+      } else {
+        try {
+          const [watermarkReference, watermarkRecovered] = await Promise.all([
+            generateWatermarkFingerprint(referenceFile.path, watermarkKey),
+            detectWatermarkFingerprint(candidateFile.path, watermarkKey)
+          ]);
+
+          const watermarkCrossBitErrorRate = computeBitErrorRate(
+            watermarkReference.fingerprintHex,
+            watermarkRecovered.fingerprintHex
+          );
+
+          watermarkComparison = {
+            status: "ok",
+            key: watermarkKey,
+            referenceFingerprint: watermarkReference.fingerprintHex,
+            recoveredFingerprint: watermarkRecovered.fingerprintHex,
+            confidence: watermarkRecovered.confidence,
+            bitErrorRate: watermarkRecovered.bitErrorRate,
+            crossMediaBitErrorRate: Number(watermarkCrossBitErrorRate.toFixed(4)),
+            framesUsed: watermarkRecovered.framesUsed,
+            eccScheme: watermarkReference.eccScheme,
+            encodedBitLength: watermarkReference.encodedBitLength
+          };
+        } catch (watermarkError) {
+          const statusCode = Number(watermarkError?.statusCode || 500);
+          const errorCode =
+            typeof watermarkError?.code === "string" && watermarkError.code.trim().length > 0
+              ? watermarkError.code
+              : "WATERMARK_UNAVAILABLE";
+
+          if (statusCode >= 500) {
+            console.warn(
+              `[api] ${req.method} ${req.originalUrl} -> watermark unavailable`,
+              watermarkError
+            );
+          }
+
+          watermarkComparison = {
+            status: "error",
+            key: watermarkKey,
+            error: {
+              code: errorCode,
+              message:
+                statusCode >= 500
+                  ? "Watermark comparison unavailable in current deployment."
+                  : watermarkError.message || "Watermark comparison failed."
+            }
+          };
+        }
+      }
 
       res.status(200).json({
         success: true,
@@ -173,17 +243,7 @@ router.post(
             referenceVariants: comparison.reference?.variants || [],
             result: firstResult
           },
-          watermarkComparison: {
-            key: watermarkKey,
-            referenceFingerprint: watermarkReference.fingerprintHex,
-            recoveredFingerprint: watermarkRecovered.fingerprintHex,
-            confidence: watermarkRecovered.confidence,
-            bitErrorRate: watermarkRecovered.bitErrorRate,
-            crossMediaBitErrorRate: Number(watermarkCrossBitErrorRate.toFixed(4)),
-            framesUsed: watermarkRecovered.framesUsed,
-            eccScheme: watermarkReference.eccScheme,
-            encodedBitLength: watermarkReference.encodedBitLength
-          }
+          watermarkComparison
         }
       });
     } catch (error) {

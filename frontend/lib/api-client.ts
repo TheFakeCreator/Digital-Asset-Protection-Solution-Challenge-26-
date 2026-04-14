@@ -146,17 +146,32 @@ export type DetectionPreviewCompareResponse = {
     referenceVariants: string[];
     result: DetectionPreviewCompareResult | null;
   };
-  watermarkComparison: {
-    key: string;
-    referenceFingerprint: string;
-    recoveredFingerprint: string;
-    confidence: number;
-    bitErrorRate: number;
-    crossMediaBitErrorRate: number;
-    framesUsed: number;
-    eccScheme: string;
-    encodedBitLength: number;
-  };
+  watermarkComparison:
+    | {
+        status: "ok";
+        key: string;
+        referenceFingerprint: string;
+        recoveredFingerprint: string;
+        confidence: number;
+        bitErrorRate: number;
+        crossMediaBitErrorRate: number;
+        framesUsed: number;
+        eccScheme: string;
+        encodedBitLength: number;
+      }
+    | {
+        status: "error";
+        key: string;
+        error: {
+          code: string;
+          message: string;
+        };
+      }
+    | {
+        status: "skipped";
+        key: string;
+        reason: string;
+      };
 };
 
 export type UploadAssetInput = {
@@ -258,13 +273,17 @@ export function previewDetectionCompare(
   referenceFile: File,
   candidateFile: File,
   threshold = 85,
-  watermarkKey = "hash-lab-demo-key"
+  watermarkKey = "hash-lab-demo-key",
+  options?: {
+    includeWatermark?: boolean;
+  }
 ) {
   const formData = new FormData();
   formData.append("reference", referenceFile);
   formData.append("candidate", candidateFile);
   formData.append("threshold", String(threshold));
   formData.append("watermarkKey", watermarkKey);
+  formData.append("includeWatermark", String(options?.includeWatermark ?? true));
 
   return requestApi<DetectionPreviewCompareResponse>("/api/v1/detections/preview-compare", {
     method: "POST",
